@@ -118,11 +118,12 @@
 <body>
   <div id="content" class="markdown-body"></div>
   <script>
-    // 通道名 HyperLens 与回执前缀 "render " 必须与 lib/src/protocol/js_protocol.dart 一致。
+    // 通道名在构建时由 __HYPERLENS_CHANNEL__ 注入（默认 HyperLens）；它和回执前缀
+    // "render " 必须与 lib/src/protocol/hyperlens_bridge.dart 一致。
     function post(msg) {
       try {
-        if (window.HyperLens && window.HyperLens.postMessage) {
-          window.HyperLens.postMessage(msg);
+        if (window.__HYPERLENS_CHANNEL__ && window.__HYPERLENS_CHANNEL__.postMessage) {
+          window.__HYPERLENS_CHANNEL__.postMessage(msg);
         }
       } catch (e) { /* 非 WebView 环境下忽略 */ }
     }

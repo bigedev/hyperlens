@@ -13,17 +13,20 @@ library;
 
 export 'src/asset/asset_loader.dart';
 export 'src/asset/hyperlens_assets.dart';
+export 'src/host/logger.dart';
 export 'src/html/html_anchor.dart';
 export 'src/html/html_document_style.dart';
 export 'src/markdown/bridge.dart';
 export 'src/markdown/escape.dart';
 export 'src/markdown/extras.dart';
 export 'src/markdown/links.dart';
-export 'src/markdown/payload.dart';
+// payload.dart 是渲染入口的内部实现（`MarkdownPage` 用），不在 barrel 里导出。
+export 'src/markdown/markdown_page.dart';
 export 'src/model/anchor_handoff.dart';
 export 'src/model/code_anchor.dart';
 export 'src/model/document_outline.dart';
 export 'src/model/html_outline.dart';
+export 'src/model/hyperlens_theme.dart';
 export 'src/model/markdown_outline.dart';
 export 'src/model/preview_anchor.dart';
 export 'src/model/preview_focus.dart';

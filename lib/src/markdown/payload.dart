@@ -1,10 +1,18 @@
 import 'dart:convert';
 
 import '../asset/hyperlens_assets.dart';
+import '../host/logger.dart';
 import '../model/preview_anchor.dart';
 import '../model/preview_focus.dart';
+import '../protocol/hyperlens_bridge.dart';
 import 'escape.dart';
 import 'extras.dart';
+
+/// 模板里 JS 通道名的占位符。
+///
+/// 模板是资源文件、Dart 侧 import 不到，只能靠这串字面量约定（与 `HyperlensBridge`
+/// 的说明同一条：改一边必须改另一边，否则回执永远不来）。
+const String _channelPlaceholder = '__HYPERLENS_CHANNEL__';
 
 /// 页面载荷：一份 JSON，模板里由 `/*__PAYLOAD__*/` 占位。
 ///
@@ -59,6 +67,19 @@ Future<String> buildMarkdownHtml({
   required String payload,
   required String markdown,
   bool ink = false,
+
+  /// 注入模板的 JS 通道名（页面里是 `window.<channelName>`）。
+  ///
+  /// 模板里写的是占位符 `__HYPERLENS_CHANNEL__`，在这里替换成实际名字 —— 使用方
+  /// 可以改成自己的通道名，不必和包的默认值一致。
+  String channelName = HyperlensBridge.channelName,
+
+  /// 增强资产读不到时记一句。
+  ///
+  /// 分级见 README：**增强资产**（KaTeX / Mermaid / mhchem）缺失 → 降级渲染正文；
+  /// **核心资产**（模板 / marked / purify / 主题 CSS）缺失 → 直接抛
+  /// `HyperlensAssetException`（少一样就是白屏，静默比报错更难查）。
+  HyperlensLogger? logger,
 }) async {
   final MarkdownExtras extras = detectMarkdownExtras(markdown);
   final String html = await load(HyperlensAssets.markdownViewHtml);
@@ -75,14 +96,30 @@ Future<String> buildMarkdownHtml({
       ink ? '$mdCss\n${await load(HyperlensAssets.mdInkCss)}' : mdCss;
   final String hljsThemeCss =
       ink ? '$hljsCss\n${await load(HyperlensAssets.hljsInkCss)}' : hljsCss;
+
+  /// 增强资产：读不到就按缺失处理（正文照常，公式/图表这一块空着）。
+  Future<String> optional(String path) async {
+    try {
+      return await load(path);
+    } catch (error) {
+      logger?.warn('assets', '增强资产读取失败，按缺失处理：$path');
+      return '';
+    }
+  }
+
   // 公式（含化学式）：只有这篇文档真的写了公式才加载。mhchem 依赖全局 katex，
   // 模板里必须排在 katex 之后（见 markdown_view.html 的注释）。
-  final String katexCss = extras.math ? await load(HyperlensAssets.katexCss) : '';
-  final String katexJs = extras.math ? await load(HyperlensAssets.katexJs) : '';
-  final String mhchemJs = extras.math ? await load(HyperlensAssets.mhchemJs) : '';
-  // 图表：只有出现 ```mermaid 围栏才内联 3.57 MB（Mermaid 12.x 更大，不用）。
-  final String mermaidJs = extras.mermaid ? await load(HyperlensAssets.mermaidJs) : '';
+  final String katexCss =
+      extras.math ? await optional(HyperlensAssets.katexCss) : '';
+  final String katexJs =
+      extras.math ? await optional(HyperlensAssets.katexJs) : '';
+  final String mhchemJs =
+      extras.math ? await optional(HyperlensAssets.mhchemJs) : '';
+  // 图表：只有出现 ```mermaid 围栏才内联约 3.4 MB（Mermaid 12.x 更大，不用）。
+  final String mermaidJs =
+      extras.mermaid ? await optional(HyperlensAssets.mermaidJs) : '';
   return html
+      .replaceAll(_channelPlaceholder, channelName)
       .replaceAll('/*__MD_BACKGROUND__*/', background)
       .replaceAll('/*__MD_FOREGROUND__*/', foreground)
       .replaceAll('/*__MD_BORDER__*/', border)

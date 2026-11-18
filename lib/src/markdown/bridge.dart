@@ -18,20 +18,20 @@ import '../protocol/hyperlens_bridge.dart';
 /// - `anchor <目标>` —— 页内锚点已由页面自己滚好，只记日志。
 ///
 /// 三条带凭据的消息必须校验凭据：换文档时旧页面还在收尾，它的位置 / 清单属于上一篇。
-sealed class MarkdownBridgeEvent {
-  const MarkdownBridgeEvent();
+sealed class MarkdownEvent {
+  const MarkdownEvent();
 
-  /// 解析一条回执。认不出来的一律归到 [Unknown]（上层当状态文字显示）。
-  static MarkdownBridgeEvent parse(String message) {
+  /// 解析一条回执。认不出来的一律归到 [UnknownMessage]（上层当状态文字显示）。
+  static MarkdownEvent parse(String message) {
     if (message.startsWith(HyperlensBridge.receiptPrefix)) {
       final (String? token, String? rest) = _splitToken(
         message,
         HyperlensBridge.receiptPrefix,
       );
       if (token == null || rest == null) {
-        return Unknown(message);
+        return UnknownMessage(message);
       }
-      return RenderReceipt(token: token, result: rest);
+      return RenderReady(token: token, result: rest);
     }
     if (message.startsWith(_linkPrefix)) {
       final String encoded = message.substring(_linkPrefix.length);
@@ -41,33 +41,33 @@ sealed class MarkdownBridgeEvent {
       } on ArgumentError {
         // 转义异常时按原样交给上层，上层还会再判一次
       }
-      return LinkTap(href);
+      return LinkTapped(href);
     }
     if (message.startsWith(_topPrefix)) {
       final (String? token, String? rest) = _splitToken(message, _topPrefix);
       if (token == null || rest == null) {
-        return Unknown(message);
+        return UnknownMessage(message);
       }
-      return PositionReport(token: token, anchor: PreviewAnchor.tryParse(rest));
+      return PositionReported(token: token, anchor: PreviewAnchor.tryParse(rest));
     }
     if (message.startsWith(_outlinePrefix)) {
       final (String? token, String? rest) = _splitToken(message, _outlinePrefix);
       if (token == null || rest == null) {
-        return Unknown(message);
+        return UnknownMessage(message);
       }
-      return OutlineReport(token: token, outline: MarkdownOutline.parse(rest));
+      return OutlineReported(token: token, outline: MarkdownOutline.parse(rest));
     }
     if (message.startsWith(_focusPrefix)) {
       final (String? token, String? rest) = _splitToken(message, _focusPrefix);
       if (token == null || rest == null) {
-        return Unknown(message);
+        return UnknownMessage(message);
       }
       return FocusApplied(token: token, count: int.tryParse(rest.trim()));
     }
     if (message.startsWith(_anchorPrefix)) {
       return AnchorScrolled(message.substring(_anchorPrefix.length));
     }
-    return Unknown(message);
+    return UnknownMessage(message);
   }
 
   /// 把 `<前缀><凭据> <其余>` 拆成两截；格式不对（没有分隔空格）返回两个 null。
@@ -89,31 +89,31 @@ sealed class MarkdownBridgeEvent {
 }
 
 /// 渲染回执：[result] 是页面给的一句话（`ok（…）` / `empty` / `no-marked` / `异常: …`）。
-final class RenderReceipt extends MarkdownBridgeEvent {
-  const RenderReceipt({required this.token, required this.result});
+final class RenderReady extends MarkdownEvent {
+  const RenderReady({required this.token, required this.result});
 
   final String token;
   final String result;
 }
 
 /// 用户点了链接（[href] 已解码）。
-final class LinkTap extends MarkdownBridgeEvent {
-  const LinkTap(this.href);
+final class LinkTapped extends MarkdownEvent {
+  const LinkTapped(this.href);
 
   final String href;
 }
 
 /// 阅读位置回执；[anchor] 为 null 表示 JSON 认不出来（丢弃即可，不要当顶部）。
-final class PositionReport extends MarkdownBridgeEvent {
-  const PositionReport({required this.token, required this.anchor});
+final class PositionReported extends MarkdownEvent {
+  const PositionReported({required this.token, required this.anchor});
 
   final String token;
   final PreviewAnchor? anchor;
 }
 
 /// 章节清单回执。
-final class OutlineReport extends MarkdownBridgeEvent {
-  const OutlineReport({required this.token, required this.outline});
+final class OutlineReported extends MarkdownEvent {
+  const OutlineReported({required this.token, required this.outline});
 
   final String token;
   final MarkdownOutline outline;
@@ -123,7 +123,7 @@ final class OutlineReport extends MarkdownBridgeEvent {
 ///
 /// **只用于日志**：高亮是增强，没亮起来也不该让页面进入某种「失败态」——
 /// 读者手里的文档已经能读，别为一条定位再去打扰他。
-final class FocusApplied extends MarkdownBridgeEvent {
+final class FocusApplied extends MarkdownEvent {
   const FocusApplied({required this.token, required this.count});
 
   final String token;
@@ -131,15 +131,15 @@ final class FocusApplied extends MarkdownBridgeEvent {
 }
 
 /// 页内锚点已滚动到位（只用于日志）。
-final class AnchorScrolled extends MarkdownBridgeEvent {
+final class AnchorScrolled extends MarkdownEvent {
   const AnchorScrolled(this.target);
 
   final String target;
 }
 
 /// 认不出的回执：原样交给上层当状态文字（页面与 Dart 版本不同步时别炸）。
-final class Unknown extends MarkdownBridgeEvent {
-  const Unknown(this.raw);
+final class UnknownMessage extends MarkdownEvent {
+  const UnknownMessage(this.raw);
 
   final String raw;
 }
