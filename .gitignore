@@ -1,0 +1,6 @@
+.dart_tool/
+pubspec.lock
+build/
+
+# 发布脚本与审计文档不入库（包只需要 lib / example / test 与两份根文档）
+docs/
