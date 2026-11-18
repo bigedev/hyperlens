@@ -60,7 +60,7 @@ void main() {
       );
       expect(outline.entries.first.address, const SourceAddress(2));
       expect(outline.entries.last.address, const SourceAddress(30));
-      expect(outline.sectionAt(3), 0);
+      expect(outline.sectionAtLine(3), 0);
     });
 
     test('同字段即同一条（抽屉靠它判断要不要重建）', () {
@@ -116,17 +116,17 @@ void main() {
         ']');
 
     test('首个标题之前算第一节（抽屉不能一条都不高亮）', () {
-      expect(outline.sectionAt(1), 0);
-      expect(outline.sectionAt(9), 0);
-      expect(outline.sectionAt(0), -1); // 没有行号就没有「当前项」
-      expect(MarkdownOutline.empty.sectionAt(3), -1);
+      expect(outline.sectionAtLine(1), 0);
+      expect(outline.sectionAtLine(9), 0);
+      expect(outline.sectionAtLine(0), -1); // 没有行号就没有「当前项」
+      expect(MarkdownOutline.empty.sectionAtLine(3), -1);
     });
 
     test('标题本身与它下面的正文都算这一节', () {
-      expect(outline.sectionAt(10), 0);
-      expect(outline.sectionAt(49), 0); // A 与 B 之间的正文
-      expect(outline.sectionAt(50), 1);
-      expect(outline.sectionAt(9999), 1); // 最后一节之后的正文
+      expect(outline.sectionAtLine(10), 0);
+      expect(outline.sectionAtLine(49), 0); // A 与 B 之间的正文
+      expect(outline.sectionAtLine(50), 1);
+      expect(outline.sectionAtLine(9999), 1); // 最后一节之后的正文
     });
   });
 

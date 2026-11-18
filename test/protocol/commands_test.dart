@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hyperlens/src/model/preview_position.dart';
+import 'package:hyperlens/src/model/preview_syntax.dart';
 import 'package:hyperlens/src/protocol/commands.dart';
 
 void main() {
@@ -27,6 +28,23 @@ void main() {
       expect(
         HyperlensCommands.scrollToPath("a'b\\c<d"),
         r"hyperLensScrollToPath('a\'b\\c\u003cd')",
+      );
+    });
+
+    test('HTML 页面拿到源码行（典型是 PreviewPosition.top）：回顶部，不发 mdScrollToLine', () {
+      // mdScrollToLine 在 HTML 页面上不存在，真发过去就是 ReferenceError
+      // —— 表现成「点了没反应」，日志里看不出是地址给错了
+      expect(
+        HyperlensCommands.forPosition(
+          PreviewPosition.top,
+          kind: PreviewSourceKind.html,
+        ),
+        "hyperLensScrollToPath('body')",
+      );
+      // 不传 kind 时保持老行为（Markdown 那边的正常路径）
+      expect(
+        HyperlensCommands.forPosition(PreviewPosition.top),
+        'mdScrollToLine(1)',
       );
     });
   });

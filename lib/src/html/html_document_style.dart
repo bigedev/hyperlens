@@ -20,7 +20,7 @@ const double kHtmlZoomBaseFontSize = 16;
 /// 所以文字放大会自动换行、不会横向溢出。
 ///
 /// 非法输入（NaN / 0 / 负数）一律回 1.0，别让一次调用失误把页面缩成空白；
-/// 结果也 clamp 在 [0.5, 3] —— 档位表是我们自己定的，越界只可能是调用方传错。
+/// 结果也 clamp 在 `0.5 ~ 3` —— 档位表是我们自己定的，越界只可能是调用方传错。
 double htmlPreviewZoom(double previewFontSize) {
   if (!previewFontSize.isFinite || previewFontSize <= 0) {
     return 1;
@@ -29,7 +29,7 @@ double htmlPreviewZoom(double previewFontSize) {
 }
 
 /// HTML 预览要注入的整段 CSS：底色兜底 + UA 配色档 + 整页缩放 + 链接下划线
-/// （深色档另有可能提亮作者写死的整页字色，见 [liftText]）。
+/// （深色档另有可能提亮作者写死的整页字色，见 `liftText`）。
 ///
 /// 各条规则的**优先级意图各不相同**，别当成并列的几条去「统一」：
 /// - `html,body{background-color}`：**兜底** —— 作者声明了底色就让它赢（同 R101）；

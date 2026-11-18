@@ -15,6 +15,8 @@ import 'dart:convert';
 
 import 'package:meta/meta.dart';
 
+import 'value_equality.dart';
+
 /// 这份树是从哪种文档解析出来的。
 ///
 /// 决定 `line` 还是 `path` 有意义；两者不会同时出现。
@@ -146,6 +148,19 @@ class PreviewSyntaxIssue {
     );
   }
 
+  /// 值相等：宿主拿它判断「这一份清单与上一份是不是同一份」—— 页面每次重渲都会
+  /// 发一份新对象，按身份比会把每次重渲都当成「问题变了」（与 [OutlineEntry] 同因）。
+  @override
+  bool operator ==(Object other) =>
+      other is PreviewSyntaxIssue &&
+      other.kind == kind &&
+      other.detail == detail &&
+      other.line == line &&
+      other.path == path;
+
+  @override
+  int get hashCode => Object.hash(kind, detail, line, path);
+
   @override
   String toString() => 'PreviewSyntaxIssue(${kind.wireName}'
       '${line != null ? ", line: $line" : ""}'
@@ -208,6 +223,32 @@ class PreviewSyntaxNode {
           'children':
               children.map((PreviewSyntaxNode n) => n.toJson()).toList(),
       };
+
+  /// 值相等：节点树按内容比（[children] 递归比），页面重渲发来的新对象不会被当成
+  /// 「结构变了」。没有这条，宿主只能用「节点数 + 第一个节点」这种近似判据。
+  @override
+  bool operator ==(Object other) =>
+      other is PreviewSyntaxNode &&
+      other.type == type &&
+      other.line == line &&
+      other.endLine == endLine &&
+      other.level == level &&
+      other.lang == lang &&
+      other.text == text &&
+      other.path == path &&
+      sameValues(other.children, children);
+
+  @override
+  int get hashCode => Object.hash(
+        type,
+        line,
+        endLine,
+        level,
+        lang,
+        text,
+        path,
+        valuesHash(children),
+      );
 
   @override
   String toString() => 'PreviewSyntaxNode($type, line: $line, '
@@ -378,13 +419,6 @@ class PreviewSyntaxTree {
     return PreviewSyntaxTree(kind: fallbackKind);
   }
 
-  /// 解析一条页面上报；不是 `ast` 回执时返回 null（交给别的通道）。
-  static PreviewSyntaxTree? parsePayload(
-    String json, {
-    PreviewSourceKind fallbackKind = PreviewSourceKind.markdown,
-  }) =>
-      parse(json, fallbackKind: fallbackKind);
-
   static List<PreviewSyntaxNode> _parseNodes(
     List<Object?> raw,
     _Budget budget,
@@ -471,6 +505,26 @@ class PreviewSyntaxTree {
 
   static String? _nonEmpty(Object? raw) =>
       raw is String && raw.isNotEmpty ? raw : null;
+
+  /// 值相等：`nodeCount` 不参与 —— 它只是「页面说有多少个」的附带信息，
+  /// 同一批节点在不同截断档下报出来的数可以不同，拿它比会让同一棵树判成两份。
+  @override
+  bool operator ==(Object other) =>
+      other is PreviewSyntaxTree &&
+      other.kind == kind &&
+      other.version == version &&
+      other.truncated == truncated &&
+      sameValues(other.nodes, nodes) &&
+      sameValues(other.issues, issues);
+
+  @override
+  int get hashCode => Object.hash(
+        kind,
+        version,
+        truncated,
+        valuesHash(nodes),
+        valuesHash(issues),
+      );
 
   @override
   String toString() =>

@@ -6,6 +6,7 @@ import '../model/preview_position.dart';
 import '../model/preview_focus.dart';
 import '../protocol/hyperlens_bridge.dart';
 import 'escape.dart';
+import 'focus_script.dart';
 import 'extras.dart';
 
 /// 模板里 JS 通道名的占位符。
@@ -155,7 +156,7 @@ Future<String> buildMarkdownHtml({
       .replaceFirst('/*__MHCHEM_JS__*/', mhchemJs)
       .replaceFirst('/*__MERMAID_JS__*/', mermaidJs)
       // 「按片段定位并高亮」的那段脚本：与 HTML 预览共用一份源码
-      // （见 [kPreviewFocusJs]），别在模板里另抄一遍。
-      .replaceFirst('/*__FOCUS_JS__*/', kPreviewFocusJs)
+      // （见 [previewFocusJs]），别在模板里另抄一遍。
+      .replaceFirst('/*__FOCUS_JS__*/', previewFocusJs)
       .replaceFirst('/*__PAYLOAD__*/', payload);
 }

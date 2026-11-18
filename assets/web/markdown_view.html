@@ -306,12 +306,24 @@
        读者第二次就不看了。
 
        全部只看**源码文本与渲染用的那一份 token**，不再跑第二次解析（§4.1）。
-       三种硬错：代码围栏没闭合、表格某行列数和表头对不上、引用式链接没有定义。 */
+       四种硬错：代码围栏没闭合、表格某行列数和表头对不上、引用式链接没有定义、
+       作者的 `<script>` 被净化掉。 */
     var kIssueMax = 20;
 
     function mdIssue(list, kind, line, detail) {
       if (list.length >= kIssueMax) { return; }
       list.push({ kind: kind, line: line, detail: detail });
+    }
+
+    /* 第 index 个字符在第几行（1 起）。给「只找一次」的规则用：`mdScanIssues` 里
+       那个 lineAt 是单调前进的，倒着问会算错。 */
+    function lineOfIndex(text, index) {
+      var n = 1;
+      var end = index < text.length ? index : text.length;
+      for (var i = 0; i < end; i++) {
+        if (text.charCodeAt(i) === 10) { n += 1; }
+      }
+      return n;
     }
 
     /* 整篇扫一遍。返回 `issues` 数组；条数上限与 Dart 侧的面板一致（宁少不多）。 */
@@ -384,6 +396,21 @@
         if (inFence(at)) { continue; }
         mdIssue(out, 'unresolvedReference', at,
           '「' + (hit[2] || hit[1]) + '」没有对应定义，会按字面量显示');
+      }
+
+      /* ④ 作者的 `<script>` 会被摘掉：正文过白名单净化（PURIFY_TAGS），
+         `<script>` 一定在里面被删。代码块里写的 `<script>` 是示例，不算 ——
+         那正是最常见的写法，报了就是纯噪声。
+
+         这里另算行号而不用上面的 lineAt：那个是**单调前进**的（匹配按出现顺序走），
+         而脚本可能在所有引用式链接之前出现，复用会把行号算大。 */
+      var script = /<script\b/i.exec(text);
+      if (script) {
+        var scriptLine = lineOfIndex(text, script.index);
+        if (!inFence(scriptLine)) {
+          mdIssue(out, 'strippedScript', scriptLine,
+            '作者的 <script> 被摘掉了：预览不执行文档里的脚本');
+        }
       }
 
       return out;

@@ -63,10 +63,10 @@ void main() {
       final HtmlOutline outline = HtmlOutline.parse(jsonEncode(<Object>[
         <String, Object>{'level': 1, 'text': '唯一', 'path': 'body>h1:nth(1)'},
       ]));
-      expect(outline.sectionAt(0), 0);
-      expect(outline.sectionAt(3), -1);
-      expect(outline.sectionAt(-1), -1);
-      expect(HtmlOutline.empty.sectionAt(0), -1);
+      expect(outline.sectionAtIndex(0), 0);
+      expect(outline.sectionAtIndex(3), -1);
+      expect(outline.sectionAtIndex(-1), -1);
+      expect(HtmlOutline.empty.sectionAtIndex(0), -1);
     });
   });
 

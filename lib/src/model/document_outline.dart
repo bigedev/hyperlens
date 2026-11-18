@@ -11,6 +11,7 @@ import 'dart:math' as math;
 import 'package:meta/meta.dart';
 
 import 'preview_position.dart';
+import 'value_equality.dart';
 
 /// 目录里的一条标题。
 ///
@@ -92,6 +93,23 @@ class DocumentOutline {
     }
     return true;
   }
+
+  /// 值相等：按清单内容比，且**要同一种清单**（Markdown 与 HTML 的空清单不是一回事）。
+  ///
+  /// 与 [sameContentAs] 的差别只有类型这一条：那个方法问的是「章节看起来一样吗」，
+  /// 不看来源；这里问的是「还是同一份东西吗」。宿主判「折叠状态要不要清」用前者，
+  /// 判「要不要重建列表」用这条。
+  @override
+  bool operator ==(Object other) =>
+      other.runtimeType == runtimeType &&
+      other is DocumentOutline &&
+      sameValues(entries, other.entries);
+
+  @override
+  int get hashCode => Object.hash(runtimeType, valuesHash(entries));
+
+  @override
+  String toString() => '$runtimeType(${entries.length} 条)';
 
   /// 缩进基准层 —— 清单里**最外层**标题的层级。
   ///

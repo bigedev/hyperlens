@@ -32,7 +32,7 @@ import '../protocol/hyperlens_bridge.dart';
 /// 与 Markdown 的 `top <凭据> <JSON>` **有意不同**：那边带渲染凭据（要丢迟到消息），
 /// HTML 预览每次提交都是整页重载、页面自己就是我们注入的这段，不存在上一页还在报
 /// 的时序问题；少一个字段就少一处可能对不上的地方。
-const String kHtmlAnchorPrefix = 'scroll ';
+// 位置回执前缀见 `HyperlensBridge.scrollPrefix`（与模板里的字面量靠测试对齐）。
 
 /// 注入页面的脚本：上报节流 + 还原按住 + 路径定位。
 ///
@@ -557,12 +557,12 @@ Map<String, Object?> _restorePayload(PreviewPosition? restore) {
 ({PreviewPosition? position, int section})? parseHtmlAnchorWithSection(
   String message,
 ) {
-  if (!message.startsWith(kHtmlAnchorPrefix)) {
+  if (!message.startsWith(HyperlensBridge.scrollPrefix)) {
     return null;
   }
   final Object? raw;
   try {
-    raw = jsonDecode(message.substring(kHtmlAnchorPrefix.length));
+    raw = jsonDecode(message.substring(HyperlensBridge.scrollPrefix.length));
   } on FormatException {
     return null;
   }

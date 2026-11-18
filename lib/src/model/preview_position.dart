@@ -25,11 +25,13 @@ import 'package:meta/meta.dart';
 sealed class PreviewPosition {
   const PreviewPosition();
 
-  /// 「从头」。
+  /// 「从头」= 源码第 1 行（**Markdown 专用**）。
   ///
-  /// Markdown 传 [SourceAddress] 的第 1 行；HTML 传 [DomAddress.body]。
   /// **不能省**：同一个 WebView 实例会把上一篇的滚动位置留给下一篇（真机实测
   /// 停在半腰），不显式说一句「回到开头」，新文档就继承旧位置。
+  ///
+  /// HTML 没有行号，那一侧的顶部是 [DomAddress.body]；把这条传给 HTML 页面时
+  /// `HyperlensCommands.forPosition(..., kind: PreviewSourceKind.html)` 会兜成回顶部。
   static const PreviewPosition top = SourceAddress(1);
 
   /// 写进模板载荷的形态（`payload.restore`）。

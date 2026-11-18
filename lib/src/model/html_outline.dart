@@ -19,13 +19,12 @@ import 'dart:convert';
 import 'package:meta/meta.dart';
 
 import 'document_outline.dart';
+import '../protocol/hyperlens_bridge.dart';
 import 'preview_position.dart';
 
-/// 清单回执前缀：`outline <JSON>`。
-///
-/// 与阅读位置回执（`scroll <JSON>`，见 `html_anchor.dart`）分开：位置每滚停一次
-/// 就来一条，清单只在**页面内容变了**（换文件、改窗口尺寸后重扫）才发。
-const String kHtmlOutlinePrefix = 'outline ';
+// 清单回执前缀见 `HyperlensBridge.outlinePrefix`：与阅读位置回执（`scroll <JSON>`）
+// 分开 —— 位置每滚停一次就来一条，清单只在**页面内容变了**（换文件、改窗口尺寸后
+// 重扫）才发。
 
 /// 一篇 HTML 页面的章节清单。
 @immutable
@@ -38,7 +37,7 @@ class HtmlOutline extends DocumentOutline {
   ///
   /// 页面按同一份文档顺序扫标题，所以下标可以直用；越界只可能是「页面刚重扫、
   /// 清单还没送到」，这时不高亮比高亮错一条好。
-  int sectionAt(int index) {
+  int sectionAtIndex(int index) {
     if (entries.isEmpty || index < 0 || index >= entries.length) {
       return -1;
     }
@@ -90,9 +89,9 @@ class HtmlOutline extends DocumentOutline {
 
   /// 解析一条 WebView 回执；不是清单回执时返回 null（交给别的通道处理）。
   static HtmlOutline? parseReport(String message) {
-    if (!message.startsWith(kHtmlOutlinePrefix)) {
+    if (!message.startsWith(HyperlensBridge.outlinePrefix)) {
       return null;
     }
-    return parse(message.substring(kHtmlOutlinePrefix.length));
+    return parse(message.substring(HyperlensBridge.outlinePrefix.length));
   }
 }

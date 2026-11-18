@@ -121,13 +121,14 @@ sealed class MarkdownEvent {
     return (rest.substring(0, sep), rest.substring(sep + 1));
   }
 
-  // `render ` 前缀与模板共享，定义在 [HyperlensBridge]（避免 Dart 两份、模板五份各写各的）
-  static const String _linkPrefix = 'link ';
-  static const String _topPrefix = 'top ';
-  static const String _outlinePrefix = 'outline ';
-  static const String _astPrefix = 'ast ';
-  static const String _focusPrefix = 'focus ';
-  static const String _anchorPrefix = 'anchor ';
+  // 回执前缀全部定义在 [HyperlensBridge]：模板是资源文件、Dart 这边也只有一份，
+  // 两边靠那些常量与模板注释互相指认。
+  static const String _linkPrefix = HyperlensBridge.linkPrefix;
+  static const String _topPrefix = HyperlensBridge.positionPrefix;
+  static const String _outlinePrefix = HyperlensBridge.outlinePrefix;
+  static const String _astPrefix = HyperlensBridge.astPrefix;
+  static const String _focusPrefix = HyperlensBridge.focusPrefix;
+  static const String _anchorPrefix = HyperlensBridge.anchorPrefix;
 }
 
 /// 渲染回执：[result] 是页面给的一句话（`ok（…）` / `empty` / `no-marked` / `异常: …`）。
@@ -136,6 +137,16 @@ final class RenderReady extends MarkdownEvent {
 
   final String token;
   final String result;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RenderReady && other.token == token && other.result == result;
+
+  @override
+  int get hashCode => Object.hash(token, result);
+
+  @override
+  String toString() => 'RenderReady($token, $result)';
 }
 
 /// 用户点了链接（[href] 已解码）。
@@ -143,6 +154,15 @@ final class LinkTapped extends MarkdownEvent {
   const LinkTapped(this.href);
 
   final String href;
+
+  @override
+  bool operator ==(Object other) => other is LinkTapped && other.href == href;
+
+  @override
+  int get hashCode => href.hashCode;
+
+  @override
+  String toString() => 'LinkTapped($href)';
 }
 
 /// 阅读位置回执：**地址**（[position]）与**这一帧的观测量**（[viewport]）分开带。
@@ -159,6 +179,19 @@ final class PositionReported extends MarkdownEvent {
   final String token;
   final PreviewPosition? position;
   final PreviewViewport viewport;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PositionReported &&
+      other.token == token &&
+      other.position == position &&
+      other.viewport == viewport;
+
+  @override
+  int get hashCode => Object.hash(token, position, viewport);
+
+  @override
+  String toString() => 'PositionReported($token, $position)';
 }
 
 /// 章节清单回执。
@@ -167,6 +200,18 @@ final class OutlineReported extends MarkdownEvent {
 
   final String token;
   final MarkdownOutline outline;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OutlineReported &&
+      other.token == token &&
+      other.outline == outline;
+
+  @override
+  int get hashCode => Object.hash(token, outline);
+
+  @override
+  String toString() => 'OutlineReported($token, $outline)';
 }
 
 /// 语法树回执（骨架模式）。
@@ -179,6 +224,16 @@ final class SyntaxReported extends MarkdownEvent {
 
   final String? token;
   final PreviewSyntaxTree tree;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SyntaxReported && other.token == token && other.tree == tree;
+
+  @override
+  int get hashCode => Object.hash(token, tree);
+
+  @override
+  String toString() => 'SyntaxReported($token, $tree)';
 }
 
 /// 搜索命中已高亮并滚到；[count] 是全文亮起来的处数（null = 回执读不出数字）。
@@ -190,6 +245,16 @@ final class FocusApplied extends MarkdownEvent {
 
   final String token;
   final int? count;
+
+  @override
+  bool operator ==(Object other) =>
+      other is FocusApplied && other.token == token && other.count == count;
+
+  @override
+  int get hashCode => Object.hash(token, count);
+
+  @override
+  String toString() => 'FocusApplied($token, $count)';
 }
 
 /// 页内锚点已滚动到位（只用于日志）。
@@ -197,6 +262,16 @@ final class AnchorScrolled extends MarkdownEvent {
   const AnchorScrolled(this.target);
 
   final String target;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AnchorScrolled && other.target == target;
+
+  @override
+  int get hashCode => target.hashCode;
+
+  @override
+  String toString() => 'AnchorScrolled($target)';
 }
 
 /// 认不出的回执：原样交给上层当状态文字（页面与 Dart 版本不同步时别炸）。
@@ -204,4 +279,14 @@ final class UnknownMessage extends MarkdownEvent {
   const UnknownMessage(this.raw);
 
   final String raw;
+
+  @override
+  bool operator ==(Object other) =>
+      other is UnknownMessage && other.raw == raw;
+
+  @override
+  int get hashCode => raw.hashCode;
+
+  @override
+  String toString() => 'UnknownMessage($raw)';
 }

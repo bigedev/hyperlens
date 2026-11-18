@@ -37,7 +37,7 @@ class MarkdownOutline extends DocumentOutline {
   /// **首个标题之前算第一节**（与代码大纲同一口径）：`[line] > 0` 且清单非空时至少
   /// 返回 0。抽屉里一条都不高亮会被读成「我点的那条丢了」—— 高亮的含义是「你现在
   /// 读到哪」，「在第一节前面的引子里」最接近的表述就是第一节。`[line] <= 0` 才返回 -1。
-  int sectionAt(int line) {
+  int sectionAtLine(int line) {
     if (entries.isEmpty || line <= 0) {
       return -1;
     }
@@ -74,7 +74,7 @@ class MarkdownOutline extends DocumentOutline {
     if (entries.isEmpty || topLine == null) {
       return -1;
     }
-    int index = sectionAt(topLine);
+    int index = sectionAtLine(topLine);
     if (index < 0) {
       return -1;
     }

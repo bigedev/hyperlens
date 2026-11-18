@@ -6,6 +6,7 @@ import 'package:hyperlens/src/asset/hyperlens_assets.dart';
 import 'package:hyperlens/src/html/html_document_style.dart';
 import 'package:hyperlens/src/markdown/payload.dart';
 import 'package:hyperlens/src/model/preview_position.dart';
+import 'package:hyperlens/src/protocol/commands.dart';
 import 'package:hyperlens/src/model/preview_focus.dart';
 
 /// 预览侧的搜索命中定位（`lib/src/model/preview_focus.dart`）。
@@ -170,21 +171,8 @@ void main() {
   });
 
   group('页面脚本', () {
-    test('previewFocusCall 是一句可执行调用，内容已编码', () {
-      final String call = previewFocusCall(
-        const PreviewFocus(needle: 'a"b<c', occurrence: 2),
-      );
-      expect(call.startsWith('hyperLensApplyFocus('), isTrue);
-      expect(call.endsWith(');'), isTrue);
-      expect(call.contains('"occurrence":2'), isTrue);
-      // `<` 与引号都不能原样出现（前者会被解析成标签，后者会截断 JSON）
-      expect(call.contains('<'), isFalse);
-      expect(call.contains(r'\u003c'), isTrue);
-      expect(call.contains(r'\"'), isTrue);
-    });
-
-    test('HTML 预览用的是「源码 + 调用」：脚本与调用在同一段里', () {
-      final String script = previewFocusScript(
+    test('forFocus 是「脚本 + 调用」一整段：定义在前、调用在后', () {
+      final String script = HyperlensCommands.forFocus(
         const PreviewFocus(needle: 'alpha', occurrence: 0),
       );
       expect(script.contains('hyperLensApplyFocus'), isTrue);
@@ -196,6 +184,18 @@ void main() {
             script.indexOf('function hyperLensApplyFocus'),
         isTrue,
       );
+    });
+
+    test('forFocus 里的参数已编码：`<` 与引号都不能原样出现', () {
+      final String script = HyperlensCommands.forFocus(
+        const PreviewFocus(needle: 'a"b<c', occurrence: 2),
+      );
+      final String call = script.substring(script.lastIndexOf('hyperLensApplyFocus('));
+      expect(call.contains('"occurrence":2'), isTrue);
+      // `<` 会被解析成标签，`"` 会截断 JSON
+      expect(call.contains('<'), isFalse);
+      expect(call.contains(r'\u003c'), isTrue);
+      expect(call.contains(r'\"'), isTrue);
     });
 
     test('真模板：焦点脚本有占位符，且渲染成功后才应用', () {

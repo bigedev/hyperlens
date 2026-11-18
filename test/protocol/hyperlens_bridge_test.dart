@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:hyperlens/src/html/html_anchor.dart';
 import 'package:hyperlens/src/protocol/hyperlens_bridge.dart';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +43,35 @@ void main() {
     expect(HyperlensBridge.channelName.trim(), HyperlensBridge.channelName);
     expect(HyperlensBridge.receiptPrefix, endsWith(' '));
     expect(HyperlensBridge.receiptPrefix.trim(), isNotEmpty);
+  });
+
+  // 前缀现在集中在 HyperlensBridge 一处：模板与注入脚本里只能有字面量（资源文件
+  // import 不了 Dart），所以靠这条测试把「两边各一份」钉住 —— 改了常量不改这里就红。
+  test('每条前缀在模板里都有对应字面量', () {
+    final String html = File(template).readAsStringSync();
+    final Map<String, String> prefixes = <String, String>{
+      'render': HyperlensBridge.receiptPrefix,
+      'link': HyperlensBridge.linkPrefix,
+      'top': HyperlensBridge.positionPrefix,
+      'outline': HyperlensBridge.outlinePrefix,
+      'ast': HyperlensBridge.astPrefix,
+      'focus': HyperlensBridge.focusPrefix,
+      'anchor': HyperlensBridge.anchorPrefix,
+    };
+    prefixes.forEach((String name, String prefix) {
+      expect(
+        html,
+        contains("'$prefix'"),
+        reason: '模板里没有 \'$prefix\'：改常量时漏了 $name 那条回执',
+      );
+    });
+  });
+
+  test('HTML 注入脚本里的前缀也逐字一致', () {
+    final String js = htmlAnchorScript(null, channelName: 'HyperLens');
+    expect(js, contains("'${HyperlensBridge.outlinePrefix}'"));
+    expect(js, contains("'${HyperlensBridge.astPrefix}'"));
+    expect(js, contains("'${HyperlensBridge.scrollPrefix}'"));
   });
 
   test('默认通道名是合法 JS 标识符（要拼进 window.<name>）', () {

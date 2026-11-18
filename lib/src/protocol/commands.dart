@@ -9,7 +9,10 @@
 /// 调用方拿到的是一段 JS 字符串，交给宿主的 `runJavaScript` 执行 —— 包不碰 WebView。
 library;
 
+import '../markdown/focus_script.dart';
+import '../model/preview_focus.dart';
 import '../model/preview_position.dart';
+import '../model/preview_syntax.dart';
 
 /// 页面里的 JS 全局名与函数名（与模板、注入脚本逐字一致，见各自的注释）。
 ///
@@ -17,8 +20,20 @@ import '../model/preview_position.dart';
 /// `html_anchor.dart` 的 `hyperLensScrollToPath`。
 abstract final class HyperlensCommands {
   /// 把某个地址滚到视口顶端。地址类型决定用哪条原语 —— 调用方不判断。
-  static String forPosition(PreviewPosition position) => switch (position) {
-        SourceAddress(:final int line) => scrollToLine(line),
+  ///
+  /// [kind] 只有在「地址与文档对不上」时才有用：HTML 页面拿到 [SourceAddress]
+  /// （最常见的来源是新建文档时传的 `PreviewPosition.top`）说明调用方把 Markdown
+  /// 那套坐标带到了 HTML —— 此时按设计回**顶部**（`scrollToPath('body')`），而不是
+  /// 发一条 HTML 页面根本没有的 `mdScrollToLine(1)`：那条命令在页面上是
+  /// `ReferenceError`，表现成「点了没反应」，日志里却看不出是地址给错了。
+  static String forPosition(
+    PreviewPosition position, {
+    PreviewSourceKind? kind,
+  }) =>
+      switch (position) {
+        SourceAddress(:final int line) => kind == PreviewSourceKind.html
+            ? scrollToPath(DomAddress.body.path)
+            : scrollToLine(line),
         DomAddress(:final String path) => scrollToPath(path),
       };
 
@@ -37,6 +52,16 @@ abstract final class HyperlensCommands {
   /// HTML：把 DOM 路径 [path] 指向的节点滚到视口顶端。
   static String scrollToPath(String path) =>
       'hyperLensScrollToPath(${_jsString(path)})';
+
+  /// 对**已经打开的页面**补一次搜索定位：高亮 [focus] 指向的那一处并滚到视口中间。
+  ///
+  /// 渲染期用 `MarkdownPage(focus:)` 就够了；这条是给「页面不动、只换命中」的场景
+  /// （HTML 预览从搜索打开时也是这一条）。返整段「脚本 + 调用」，宿主直接
+  /// `runJavaScript` 跑 —— 重复执行只是重新定义同一批函数，无害。
+  ///
+  /// 页面里没有 `hyperLensApplyFocus`（例如 HTML 页面脚本被关掉了）时，宿主会拿到
+  /// 一个 `ReferenceError`：包不替宿主吞掉它，那说明这次注入没生效。
+  static String forFocus(PreviewFocus focus) => previewFocusScript(focus);
 
   /// 单引号字符串字面量：`'` 与 `\` 要转义，`<` 一并转掉（内联进 `<script>`
   /// 时它可能被解析成标签，与 `payload.dart` 的载荷同一个口径）。
