@@ -20,3 +20,7 @@ Unreleased. First extraction from the preview implementation of an editor app.
 - `HyperlensTheme` treats dark and ink as independent axes: ink is a monochrome
   overlay shipped in both polarities (`*-ink.css` for the default light e-ink look,
   `*-ink-dark.css` for its inverse).
+- Mermaid stays fully visible on dark backdrops: Sankey link bands were lost because
+  Mermaid hard-codes `mix-blend-mode: multiply` on them, which only works over a light
+  page; the blend mode is now set back to `normal` for the dark themes only, so the
+  light and light-ink looks are unchanged.

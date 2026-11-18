@@ -67,6 +67,17 @@
       stroke: var(--md-border-default, #d0d7de) !important;
       stroke-width: 1px !important;
     }
+    /* 桑基图的连线是「源节点色 → 目标节点色」的渐变带（`linkColor: 'gradient'` 是
+       Mermaid 的默认值），但 Mermaid 给每条 link 的 `<g>` 写死内联
+       `mix-blend-mode: multiply`，注入的 `<style>` 里还有一条同样的规则。
+       multiply 是「乘进底色」：白纸上等于原色，黑底上乘到趋近 0 —— 深色档整块
+       过渡带消失，只剩两端节点与标签（2026-11-18 真机反馈）。
+       深色/反白档把混合模式改回 normal（叠加），浅色与墨屏浅色保持 multiply，
+       与原版观感一致。`!important` 用来压住内联 style（作者样式带 important 时
+       优先于行内声明）。 */
+    .hyperlens-mermaid-rendered.is-dark svg g.link {
+      mix-blend-mode: normal !important;
+    }
     .hyperlens-mermaid-error { border-left: 3px solid #cf222e; padding-left: 8px; }
     .empty { padding: 16px; font-family: sans-serif; opacity: .7; }
     /* 行号标记（渲染时插在每个顶级块前面，用来算「这块从源码第几行开始」）：
@@ -823,7 +834,11 @@
         try {
           var out = await window.mermaid.render(graphId, src);
           var box = document.createElement('div');
-          box.className = 'hyperlens-mermaid-rendered';
+          // `is-dark` 只服务桑基图那类「用混合模式叠色」的图：深色底上要换叠加模式，
+          // 见样式表里 `.hyperlens-mermaid-rendered.is-dark svg g.link` 的说明。
+          box.className = isDark === true
+            ? 'hyperlens-mermaid-rendered is-dark'
+            : 'hyperlens-mermaid-rendered';
           box.innerHTML = window.DOMPurify
             ? mdPurifyMermaidSvg(out.svg)
             : out.svg;
