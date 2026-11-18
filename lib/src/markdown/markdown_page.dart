@@ -1,7 +1,7 @@
 import '../asset/asset_loader.dart';
 import '../host/logger.dart';
 import '../model/hyperlens_theme.dart';
-import '../model/preview_anchor.dart';
+import '../model/preview_position.dart';
 import '../model/preview_focus.dart';
 import '../protocol/hyperlens_bridge.dart';
 import 'payload.dart';
@@ -21,7 +21,7 @@ import 'payload.dart';
 ///   markdown: source,
 ///   token: 'doc-42:v1',
 ///   theme: HyperlensTheme.light,
-///   restore: PreviewAnchor.top,
+///   restore: PreviewPosition.top,
 /// );
 /// final html = await page.render(assets: const RootBundleAssetLoader());
 /// ```
@@ -50,8 +50,11 @@ final class MarkdownPage {
   /// 阅读位置还原目标。
   ///
   /// **不能省**：不显式给一个位置，ArkWeb 会把上一篇的滚动位置留给下一篇
-  /// （真机实测停在中腰），读者一进来就找不到开头。新文档传 `PreviewAnchor.top`。
-  final PreviewAnchor restore;
+  /// （真机实测停在中腰），读者一进来就找不到开头。新文档传 `PreviewPosition.top`。
+  ///
+  /// Markdown 页只认 [SourceAddress]；传 [DomAddress] 时按「回顶部」处理（页面
+  /// 没有 DOM 路径可言，日志里会说明）。
+  final PreviewPosition restore;
 
   /// 搜索命中定位：非空时渲染完滚到那一段并高亮。
   ///
@@ -72,7 +75,7 @@ final class MarkdownPage {
     required HyperlensAssetLoader assets,
     HyperlensLogger? logger,
   }) async {
-    _checkChannelName(channelName);
+    HyperlensBridge.checkChannelName(channelName);
     final String payload = buildMarkdownPayload(
       markdown: markdown,
       dark: theme.isDark,
@@ -95,15 +98,4 @@ final class MarkdownPage {
     );
   }
 
-  /// 通道名要原样拼进 `window.<name>`：不是合法标识符的话页面会直接抛语法错误，
-  /// 表现为整页空白 —— 这种错在真机上极难归因，所以在拼装阶段就拦下来。
-  static void _checkChannelName(String name) {
-    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(name)) {
-      throw ArgumentError.value(
-        name,
-        'channelName',
-        'JS 通道名必须是合法标识符（字母/下划线开头，只含字母数字下划线）',
-      );
-    }
-  }
 }

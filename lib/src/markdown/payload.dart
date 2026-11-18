@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../asset/hyperlens_assets.dart';
 import '../host/logger.dart';
-import '../model/preview_anchor.dart';
+import '../model/preview_position.dart';
 import '../model/preview_focus.dart';
 import '../protocol/hyperlens_bridge.dart';
 import 'escape.dart';
@@ -27,7 +27,7 @@ String buildMarkdownPayload({
   required bool dark,
   required double fontSize,
   required String token,
-  required PreviewAnchor restore,
+  required PreviewPosition restore,
   PreviewFocus? focus,
 }) {
   return jsonEncode(<String, Object?>{
@@ -37,6 +37,7 @@ String buildMarkdownPayload({
     'dark': dark,
     'fontSize': fontSize,
     'token': token,
+    // 位置只发两种键之一：Markdown 模板只认 `line`，`path` 会被它忽略（→ 顶部）
     'restore': restore.toJson(),
     if (focus != null) 'focus': focus.toJson(),
   }).replaceAll('<', r'\u003c');

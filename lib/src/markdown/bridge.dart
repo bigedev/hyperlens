@@ -1,5 +1,7 @@
+import 'dart:convert';
+
 import '../model/markdown_outline.dart';
-import '../model/preview_anchor.dart';
+import '../model/preview_position.dart';
 import '../protocol/hyperlens_bridge.dart';
 
 /// 页面 → Dart 的回执（模板 `markdown_view.html` 里 `HyperLens.postMessage` 的约定）。
@@ -12,7 +14,7 @@ import '../protocol/hyperlens_bridge.dart';
 /// - `render <凭据> <结果>` —— 页面**跑到了末尾那段脚本**，是「这次加载真的渲染了」的
 ///   唯一凭据（见 `markdown_view.dart` 的渲染看门狗）；
 /// - `link <编码后的 href>` —— 链接被捕获阶段拦下，交给上层判断去外链还是仓内跳转；
-/// - `top <凭据> <锚点 JSON>` —— 阅读位置；
+/// - `top <凭据> <位置 JSON>` —— 阅读位置（`line`）与这一帧的观测量（`bottomLine`）；
 /// - `outline <凭据> <清单 JSON>` —— 章节清单（一篇一次）；
 /// - `focus <凭据> <处数>` —— 搜索命中已高亮并滚到（处数为 0 表示没找到），只记日志；
 /// - `anchor <目标>` —— 页内锚点已由页面自己滚好，只记日志。
@@ -48,7 +50,11 @@ sealed class MarkdownEvent {
       if (token == null || rest == null) {
         return UnknownMessage(message);
       }
-      return PositionReported(token: token, anchor: PreviewAnchor.tryParse(rest));
+      return PositionReported(
+        token: token,
+        position: PreviewPosition.tryParse(rest),
+        viewport: PreviewViewport.parse(_decodeOrNull(rest)),
+      );
     }
     if (message.startsWith(_outlinePrefix)) {
       final (String? token, String? rest) = _splitToken(message, _outlinePrefix);
@@ -68,6 +74,15 @@ sealed class MarkdownEvent {
       return AnchorScrolled(message.substring(_anchorPrefix.length));
     }
     return UnknownMessage(message);
+  }
+
+  /// 把 JSON 文本解成对象；认不出来返回 null（观测量那边按「没带」处理）。
+  static Object? _decodeOrNull(String text) {
+    try {
+      return jsonDecode(text);
+    } on FormatException {
+      return null;
+    }
   }
 
   /// 把 `<前缀><凭据> <其余>` 拆成两截；格式不对（没有分隔空格）返回两个 null。
@@ -103,12 +118,20 @@ final class LinkTapped extends MarkdownEvent {
   final String href;
 }
 
-/// 阅读位置回执；[anchor] 为 null 表示 JSON 认不出来（丢弃即可，不要当顶部）。
+/// 阅读位置回执：**地址**（[position]）与**这一帧的观测量**（[viewport]）分开带。
+///
+/// [position] 为 null 表示 JSON 认不出来（丢弃即可，不要当顶部）；
+/// [viewport] 恒非 null（缺字段就是空观测），它只服务章节高亮。
 final class PositionReported extends MarkdownEvent {
-  const PositionReported({required this.token, required this.anchor});
+  const PositionReported({
+    required this.token,
+    required this.position,
+    this.viewport = PreviewViewport.empty,
+  });
 
   final String token;
-  final PreviewAnchor? anchor;
+  final PreviewPosition? position;
+  final PreviewViewport viewport;
 }
 
 /// 章节清单回执。

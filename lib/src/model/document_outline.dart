@@ -1,6 +1,6 @@
 /// 预览侧「章节清单」的通用模型：一条标题 + 一整个清单。
 ///
-/// **为什么要从 Markdown 里提出来**：HTML 预览现在也出章节（`<h1>~<h6>`，见
+/// **为什么要从 Markdown 里提出来**：HTML 预览也出章节（`<h1>~<h6>`，见
 /// `html_outline.dart`），抽屉、折叠、当前节高亮都是同一套，只有「清单从哪儿来、
 /// 坐标怎么算」不同 —— 那部分留在各自的 [MarkdownOutline] / `HtmlOutline` 里，
 /// 这里只放两边共用的形状。
@@ -10,15 +10,22 @@ import 'dart:math' as math;
 
 import 'package:meta/meta.dart';
 
+import 'preview_position.dart';
+
 /// 目录里的一条标题。
+///
+/// 坐标只有 [address] 一个字段：Markdown 是标题所在源码行（[SourceAddress]），
+/// HTML 是标题节点的 DOM 路径（[DomAddress]）。于是「点目录跳过去」对两种文档是
+/// **同一条代码路径**（`HyperlensCommands.forPosition(entry.address)`）——
+/// 旧模型里那种「Markdown 记块号、HTML 记第几个标题」的同名字段已删除：两个语义
+/// 挤在一个叫 `block` 的字段里，换种文档就错，且错得很安静。
 @immutable
 class OutlineEntry {
   const OutlineEntry({
     required this.level,
     required this.text,
-    required this.block,
+    required this.address,
     this.id = '',
-    this.line = 0,
   });
 
   /// 原始标题层级（`h1` 为 1，最大 6；Markdown 的 `#` 同为 1）。
@@ -27,35 +34,28 @@ class OutlineEntry {
   /// 标题文本（已 trim；只取文本，不含内联标记）。
   final String text;
 
-  /// 这一条在**预览体坐标系**里的序号。
-  ///
-  /// Markdown 是 `#content` 的顶级子块序号（与 `PreviewAnchor.block` 同一坐标系），
-  /// HTML 是「全文第几个标题」（页面按标题元素滚动，见 `html_anchor.dart`）。
-  final int block;
+  /// 这一条在预览里的地址。
+  final PreviewPosition address;
 
   /// 页内锚点 id（Markdown 由模板生成 GitHub 风格 slug；HTML 用作者自己的 id）。
   ///
-  /// 目录点击不靠它（直接用 [block] 滚动），留着是为了排查「文档里 `[x](#小节)`
+  /// 目录点击不靠它（直接按 [address] 滚动），留着是为了排查「文档里 `[x](#小节)`
   /// 点不动」这类问题。
   final String id;
-
-  /// 这个标题在**源码里**的起始行号（1 起；0 = 算不出来，如 HTML 预览）。
-  final int line;
 
   @override
   bool operator ==(Object other) =>
       other is OutlineEntry &&
       other.level == level &&
       other.text == text &&
-      other.block == block &&
-      other.id == id &&
-      other.line == line;
+      other.address == address &&
+      other.id == id;
 
   @override
-  int get hashCode => Object.hash(level, text, block, id, line);
+  int get hashCode => Object.hash(level, text, address, id);
 
   @override
-  String toString() => 'OutlineEntry(h$level「$text」@$block/$line)';
+  String toString() => 'OutlineEntry(h$level「$text」@$address)';
 }
 
 /// 一篇文档的章节清单。
@@ -72,7 +72,7 @@ class DocumentOutline {
   bool get isNotEmpty => entries.isNotEmpty;
   int get length => entries.length;
 
-  /// 内容是否与 [other] 一样（同序、同层级、同标题、同块号）。
+  /// 内容是否与 [other] 一样（同序、同层级、同标题、同地址）。
   ///
   /// **为什么要它，而不是比对象身份**：模板每渲一次页就回传一份**新**清单 —— 换字号、
   /// 换底色、系统主题切换（应用默认「跟随系统」）都会整页重渲。用 `identical` 判「换没

@@ -1,7 +1,7 @@
 /// 预览 ↔ 源码切换时的坐标交接（用**源码行号**当公共坐标）。
 ///
-/// **为什么需要**：两条通道本来各记各的：预览记「第几块 + 块内偏移」
-/// （[PreviewAnchor]），源码记像素偏移（[CodeAnchor]），互相听不懂 —— 于是读者在预览
+/// **为什么需要**：两条通道本来各记各的：预览记源码行（[SourceAddress]），
+/// 源码记像素偏移（[CodeAnchor]），互相听不懂 —— 于是读者在预览
 /// 里读到某段、切到源码，落回的是「上次源码停的地方」，没读过就是顶部。
 ///
 /// 交接写成一个纯换算、由宿主在切视图时调用：算出来的锚点照常走各自的上报通道
@@ -15,7 +15,7 @@ library;
 import 'package:path/path.dart' as p;
 
 import 'code_anchor.dart';
-import 'preview_anchor.dart';
+import 'preview_position.dart';
 
 /// 有 Markdown 渲染通道的扩展名。
 ///
@@ -27,19 +27,19 @@ const Set<String> _markdownExtensions = <String>{'.md', '.markdown'};
 abstract final class AnchorHandoff {
   /// 源码停在第 [codeLine] 行时，切到预览该落哪。
   ///
-  /// **只有 Markdown 预览认这个坐标**：HTML 预览的锚点记的是 `scrollY`
+  /// **只有 Markdown 预览认这个坐标**：HTML 预览的地址是 DOM 路径
   /// （见 `html_anchor.dart`），拿一行号去换会把读者扔回页首 —— 返回 null 别动它。
   ///
   /// [codeLine] < 1 表示源码那边还没报过行号（刚打开、标尺还没就绪）：不猜。
-  static PreviewAnchor? toPreview({
+  static SourceAddress? toPreview({
     required String entryPath,
     required int codeLine,
   }) {
     if (!_isMarkdown(entryPath) || codeLine < 1) {
       return null;
     }
-    // 只带行号：预览侧按行找块（见 `PreviewAnchor.line` 的说明）
-    return PreviewAnchor(line: codeLine, block: -1, offset: 0, scrollY: 0);
+    // 只带行号：预览侧按行换算像素（见 `SourceAddress` 的说明）
+    return SourceAddress(codeLine);
   }
 
   /// 预览停在第 [previewLine] 行时，切到源码该落哪。

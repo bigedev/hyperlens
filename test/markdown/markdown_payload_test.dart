@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:hyperlens/src/asset/hyperlens_assets.dart';
 import 'package:hyperlens/src/markdown/escape.dart';
 import 'package:hyperlens/src/markdown/payload.dart';
-import 'package:hyperlens/src/model/preview_anchor.dart';
+import 'package:hyperlens/src/model/preview_position.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 渲染载荷与模板替换（`lib/src/markdown/payload.dart`）。
@@ -16,13 +16,13 @@ import 'package:flutter_test/flutter_test.dart';
 ///    否则文档里恰好写着 `/*__PAYLOAD__*/` 的代码块会被一起换掉。
 void main() {
   group('buildMarkdownPayload', () {
-    test('键齐全，锚点按 toJson 带出去', () {
+    test('键齐全，位置按 toJson 带出去（只有 line，没有块号 / 像素）', () {
       final String payload = buildMarkdownPayload(
         markdown: '# 标题',
         dark: true,
         fontSize: 18,
         token: '5:abc',
-        restore: const PreviewAnchor(block: 2, offset: 0, scrollY: 480),
+        restore: const SourceAddress(9),
       );
       final Map<String, Object?> json =
           jsonDecode(payload.replaceAll(r'\u003c', '<')) as Map<String, Object?>;
@@ -31,11 +31,7 @@ void main() {
       expect(json['dark'], isTrue);
       expect(json['fontSize'], 18);
       expect(json['token'], '5:abc');
-      expect(json['restore'], <String, Object?>{
-        'block': 2,
-        'offset': 0,
-        'scrollY': 480,
-      });
+      expect(json['restore'], <String, Object?>{'line': 9});
     });
 
     test('正文里的 < 全部转义（内联进 script 才不会被当标签）', () {
@@ -44,7 +40,7 @@ void main() {
         dark: false,
         fontSize: 16,
         token: '1:1',
-        restore: PreviewAnchor.top,
+        restore: PreviewPosition.top,
       );
 
       expect(payload.contains('<'), isFalse);
@@ -306,7 +302,7 @@ void main() {
         dark: false,
         fontSize: 16,
         token: 't1',
-        restore: PreviewAnchor.top,
+        restore: PreviewPosition.top,
       );
       expect(payload.contains(kEscapedDollarSentinel), isTrue);
       expect(payload.contains(r'\$'), isFalse, reason: '\$ 不能原样进页面');

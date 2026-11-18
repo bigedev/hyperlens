@@ -1,5 +1,5 @@
 import 'package:hyperlens/src/markdown/bridge.dart';
-import 'package:hyperlens/src/model/preview_anchor.dart';
+import 'package:hyperlens/src/model/preview_position.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 页面 → Dart 的回执格式（`lib/src/markdown/bridge.dart`）。
@@ -40,21 +40,40 @@ void main() {
   });
 
   group('top（阅读位置）', () {
-    test('解析出锚点', () {
+    test('解析出地址与观测量', () {
       final MarkdownEvent event = MarkdownEvent.parse(
-        'top 3:99 {"block":4,"offset":12,"scrollY":960}',
+        'top 3:99 {"line":42,"bottomLine":70}',
       );
       event as PositionReported;
       expect(event.token, '3:99');
-      expect(event.anchor, const PreviewAnchor(block: 4, offset: 12, scrollY: 960));
+      expect(event.position, const SourceAddress(42));
+      expect(
+        event.viewport,
+        const PreviewViewport(topLine: 42, bottomLine: 70),
+      );
     });
 
-    test('JSON 坏了：仍然认出是位置回执，但锚点为 null（丢弃，别当成顶部）', () {
-      final MarkdownEvent event =
-          MarkdownEvent.parse('top 3:99 {oops}');
+    test('只有 line、没有 bottomLine：观测量按空算，地址照收', () {
+      final MarkdownEvent event = MarkdownEvent.parse('top t {"line":7}');
+      event as PositionReported;
+      expect(event.position, const SourceAddress(7));
+      expect(event.viewport.topLine, 7);
+      expect(event.viewport.bottomLine, isNull);
+    });
+
+    test('JSON 坏了：仍然认出是位置回执，但地址为 null（丢弃，别当成顶部）', () {
+      final MarkdownEvent event = MarkdownEvent.parse('top 3:99 {oops}');
       event as PositionReported;
       expect(event.token, '3:99');
-      expect(event.anchor, isNull);
+      expect(event.position, isNull);
+      expect(event.viewport, PreviewViewport.empty);
+    });
+
+    test('老回执只有块号 / 像素：地址为 null（一次性换算在 Dart 侧做不了，回顶部）', () {
+      final MarkdownEvent event =
+          MarkdownEvent.parse('top t {"block":4,"offset":12,"scrollY":960}');
+      event as PositionReported;
+      expect(event.position, isNull);
     });
 
     test('缺空格归到 UnknownMessage', () {
@@ -65,13 +84,13 @@ void main() {
   group('outline（章节清单）', () {
     test('解析出条目', () {
       final MarkdownEvent event = MarkdownEvent.parse(
-        'outline 1:2 [{"level":2,"text":"安装","block":1}]',
+        'outline 1:2 [{"level":2,"text":"安装","line":8,"id":"安装"}]',
       );
       event as OutlineReported;
       expect(event.token, '1:2');
       expect(event.outline.length, 1);
       expect(event.outline.entries.single.text, '安装');
-      expect(event.outline.entries.single.block, 1);
+      expect(event.outline.entries.single.address, const SourceAddress(8));
     });
 
     test('清单 JSON 坏了给空清单（目录空着，总比显示上一篇强）', () {

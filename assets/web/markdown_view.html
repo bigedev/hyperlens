@@ -140,9 +140,11 @@
     }
   </script>
   <script>
-    /* 阅读位置锚点：记「视口顶端是第几块 + 块内滚过去多少」，返回时按同一块放回去。
+    /* 阅读位置：只记**源码行号**（视口顶端那一行），返回时按行换算像素放回去。
        为什么不用 scrollY：阅读区有 小/中/大 字号偏好，重排后像素位置对不上。
-       与 Dart 侧 PreviewAnchor（lib/src/model/preview_anchor.dart）一一对应。 */
+       为什么不记「第几块 + 块内偏移」：块号是这里内部的换算中间量（mdBlockLines），
+       对外多一套坐标就多一次选错的机会。与 Dart 侧 SourceAddress / PreviewViewport
+       （lib/src/model/preview_position.dart）一一对应。 */
     /* 注意区分「读者动了手」与「页面自己滚了」：
        换文档时 ArkWeb 会把上一篇的滚动量带过来并按新文档高度**钳制**（实测 A 在
        1688、B 更短 → 停在 693 = B 的最大滚动值），这一声 scroll 事件**早于**本脚本
@@ -173,9 +175,9 @@
 
     /* 块 ↔ 源码行：渲染时在每个顶级块前面插一枚行号标记（见渲染段），扫完就摘掉，
        只留下「第 i 块从第几行开始」这张表。
-       行号是预览与**源码视图**共用的坐标：两边各自只记自己那套刻度（块号+块内
-       偏移 / 像素偏移），互相听不懂；读者在预览里读到某段切到源码，就靠这张表
-       换算到同一处（反过来也一样，见 Dart 侧 PreviewAnchor.line / CodeAnchor.line）。 */
+       行号是唯一的对外坐标（预览、源码视图、AST 共用）；这张表是它**在页面内部**
+       的换算依据：行 → 像素（mdYForLine）、像素 → 行（mdLineAt），块号只在两者之间
+       当中间量，不出页面。 */
     var mdBlockLines = [];
 
     /* 读标记 → 位置表，然后**把标记全部摘掉**：它们不属于正文，留着会让「第几块」
@@ -263,61 +265,42 @@
       return top + frac * (nextTop - top);
     }
 
+    /* 上报：**只有地址 + 观测量**（见 Dart 侧 PreviewPosition / PreviewViewport）。
+       地址是源码行 —— 块号与像素都不再出这个函数：块号是模板内部的换算中间量
+       （mdBlockLines），像素则在换字号、改窗口、文件被改过时指向毫无关系的地方。 */
     function mdTopAnchor() {
       var y = window.scrollY || document.documentElement.scrollTop || 0;
-      var host = document.getElementById('content');
-      var block = -1;
-      var offset = 0;
-      if (host) {
-        var kids = host.children;
-        for (var i = 0; i < kids.length; i++) {
-          var top = mdBlockTop(kids[i]);
-          if (top > y + 1) { break; }  // 已经在视口下方：后面更不是顶端那块
-          block = i;
-          offset = y - top;
-        }
-      }
       return {
-        block: block,
-        offset: Math.round(offset),
-        scrollY: Math.round(y),
         line: mdLineAt(y),
         /* 视口底部那一段的源码行：章节高亮要判「下一节的标题上屏没有」，
-           只看顶端那一行不够（见 Dart 侧 MarkdownOutline.currentForScreen）。 */
+           只看顶端那一行不够（见 Dart 侧 MarkdownOutline.sectionAtViewport）。
+           这是**观测量**，不持久化、不进载荷。 */
         bottomLine: mdLineAt(y + (window.innerHeight || 0))
       };
     }
 
-    /* 落一次位：有行号就按行号（跨得过「块」这一层，长段落里也对得上），
-       没有才退回「块 + 块内偏移」，再不行用当时的像素。 */
+    /* 落一次位：只有一条路 —— 行号 → 像素（mdYForLine，块内等比插值）。
+       算不出来（没有行号 / 表里查不到）就显式回顶部：明确、可解释，好过按像素
+       猜一个位置。旧版那两级兜底（block + offset、scrollY）已删，见
+       docs/plan/preview-plugin-and-ast-plan.md §9.2。 */
     function mdRestore(a) {
       if (!a) { return; }
-      var y = null;
-      if (a.line > 0) { y = mdYForLine(a.line); }
-      var host = document.getElementById('content');
-      var kids = host ? host.children : null;
-      if (y === null && kids && a.block >= 0 && a.block < kids.length) {
-        y = mdBlockTop(kids[a.block]) + (a.offset || 0);
-      }
-      if (y === null && typeof a.scrollY === 'number') {
-        y = a.scrollY;
-      }
-      if (y === null) { return; }
-      window.scrollTo(0, Math.max(0, y));
+      var y = a.line > 0 ? mdYForLine(a.line) : null;
+      window.scrollTo(0, Math.max(0, y === null ? 0 : y));
     }
 
-    /* 跳到第 n 块（「章节」目录点了某一条）：与位置还原**共用同一套「块」坐标**，
-       于是跳过去之后按返回还能落回这一节（顺手补报一次位置 —— 读者可能马上就走）。 */
-    function mdScrollToBlock(n) {
-      var host = document.getElementById('content');
-      var kids = host ? host.children : null;
-      if (!kids || n < 0 || n >= kids.length) { return false; }
+    /* 滚动原语之一（另一条在 HTML 侧：hyperLensScrollToPath）。「章节」目录、
+       搜索结果、锚点跳转都必须复用它 —— 每多一条原语就多一套「顶对齐 / 夹底」实现。
+       按**行号**而不是块号：行号是预览与源码视图共用的坐标，跳过去之后按返回还能
+       落回这一节（顺手补报一次位置 —— 读者可能马上就走）。 */
+    function mdScrollToLine(line) {
+      var y = mdYForLine(line);
+      if (y === null) { return false; }
       /* 目录跳转是读者明确要去的地方：立刻放弃「按住还原」，和「手指一碰就放手」同一条
          规矩（见 mdUserTouched）。否则还原每 100ms 还在往旧锚点拽 —— 无头实测：跳到目标
          top=0，400ms 后又被拉回 -252px，读者看到的就是「点了目录却停在半路」。 */
       mdUserTouched = true;
       mdHolding = false;
-      var y = kids[n].getBoundingClientRect().top + (window.scrollY || 0);
       window.scrollTo(0, Math.max(0, y));
       if (window.__mdReportAnchor) { window.__mdReportAnchor(); }
       return true;
@@ -1000,8 +983,9 @@
         //
         // 为什么放在 render 回执**之后**：那条回执是「页面真的跑完了」的唯一凭据
         //（见 MarkdownView 的重试看门狗），这段万一出问题也不能把它吞掉。
-        // block 记的是它在 #content 里的**子块序号**：与位置锚点同一坐标系，
-        // 于是目录跳转能直接复用块级滚动，滚动上报也能反推「现在读到哪一节」。
+        // 每条只带**源码行**（与位置回执同一坐标）：目录跳转因此能复用
+        // mdScrollToLine，滚动上报也能反推「现在读到哪一节」。
+        // 不带块号 —— 块号是页面内部的换算中间量，出页面就多一套会走错的坐标。
         var seenSlugs = {};
         var outline = [];
         for (var i = 0; i < host.children.length; i++) {
@@ -1018,7 +1002,6 @@
           outline.push({
             level: level,
             text: headingText,
-            block: i,
             id: heading.id || '',
             /* 标题的源码起始行：章节高亮与源码态大纲共用「行号」这个坐标，
                判据才能一致（见 Dart 侧 MarkdownOutline.currentForScreen）。 */
@@ -1035,7 +1018,7 @@
           post('focus ' + payload.token + ' ' + markedCount);
         }
 
-        // 位置还原 + 上报（见 preview_anchor.dart）：整页是刚提交的，
+        // 位置还原 + 上报（见 preview_position.dart）：整页是刚提交的，
         // 读者从内链跳走再返回时，这里把他放回离开时那一块。
         //
         // **有命中就不还原**：mdHold 会在 1.5s 内反复落位，与上面那句

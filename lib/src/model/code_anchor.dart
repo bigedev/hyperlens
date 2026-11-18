@@ -6,7 +6,7 @@ import 'package:meta/meta.dart';
 ///
 /// **为什么需要**：源码视图是 `re_editor` 的一次性装配，换一篇文件就是新建
 /// `CodeLineEditingController` —— 从内链/Zen 模式/编辑态返回时，读者被扔回第 1 行，
-/// 长文件里还得自己再翻一遍（与 [PreviewAnchor] 对 Markdown 解决的问题完全相同）。
+/// 长文件里还得自己再翻一遍（与 [PreviewPosition] 对 Markdown 解决的问题完全相同）。
 ///
 /// **为什么主力还是「垂直偏移 + 当时的字号」，行号只是补充**：
 /// - 代码视图不折行，行高只跟字号走，所以同一字号下像素偏移就是稳定位置；
@@ -17,7 +17,7 @@ import 'package:meta/meta.dart';
 ///   `CodeIndicatorValue`（只有可见段落、且随滚动刷新），它还没就绪时就算不出行号。
 ///   所以行号只在**跨通道**时才用（见 [line]），并且在 CodeView 里现算，不在这里猜行高。
 ///
-/// 与 [PreviewAnchor] 一样是**纯 Dart**：可以在主机上单测（见
+/// 与 [PreviewPosition] 一样是**纯 Dart**：可以在主机上单测（见
 /// `test/model/code_anchor_test.dart`），不依赖 Flutter 或 WebView。
 @immutable
 class CodeAnchor {
@@ -41,7 +41,7 @@ class CodeAnchor {
   ///
   /// 与 [offset] 是同一件事的两种刻度：像素偏移只对本机字号/字体有效，
   /// 而**行号是预览侧也认的坐标** —— 读者在 Markdown 预览里读到某段切到源码，
-  /// 交接用的就是它（见 `PreviewAnchor.line`）。换算靠 CodeView 里的标尺
+  /// 交接用的就是它（见 `SourceAddress.line`）。换算靠 CodeView 里的标尺
   /// （re_editor 的可见段落），不在这里猜行高。
   final int line;
 

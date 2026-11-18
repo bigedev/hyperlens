@@ -20,7 +20,7 @@ void main() {
         markdown: markdown,
         token: 'doc-1:v1',
         theme: theme,
-        restore: PreviewAnchor.top,
+        restore: PreviewPosition.top,
         channelName: channelName,
       );
 

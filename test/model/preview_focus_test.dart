@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hyperlens/src/asset/hyperlens_assets.dart';
 import 'package:hyperlens/src/html/html_document_style.dart';
 import 'package:hyperlens/src/markdown/payload.dart';
-import 'package:hyperlens/src/model/preview_anchor.dart';
+import 'package:hyperlens/src/model/preview_position.dart';
 import 'package:hyperlens/src/model/preview_focus.dart';
 
 /// 预览侧的搜索命中定位（`lib/src/model/preview_focus.dart`）。
@@ -127,7 +127,7 @@ void main() {
         dark: false,
         fontSize: 16,
         token: '1:1',
-        restore: PreviewAnchor.top,
+        restore: PreviewPosition.top,
         focus: const PreviewFocus(needle: 'alpha', occurrence: 3),
       );
       final Map<String, Object?> json = jsonDecode(payload) as Map<String, Object?>;
@@ -143,7 +143,7 @@ void main() {
         dark: false,
         fontSize: 16,
         token: '1:1',
-        restore: PreviewAnchor.top,
+        restore: PreviewPosition.top,
       );
       expect(payload.contains('"focus"'), isFalse);
     });
@@ -154,7 +154,7 @@ void main() {
         dark: false,
         fontSize: 16,
         token: '1:1',
-        restore: PreviewAnchor.top,
+        restore: PreviewPosition.top,
         focus: const PreviewFocus(needle: '</script>', occurrence: 0),
       );
       expect(payload.contains('<'), isFalse);
