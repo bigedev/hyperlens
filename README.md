@@ -86,6 +86,12 @@ Reach for `package:hyperlens/advanced.dart` only when you compose pages
 yourself or need diagnostics (HTML injection order, tag scanning, Markdown
 link resolution). The main entry keeps just what "using this package" needs.
 
+## Example
+
+[`example/`](example/) is a runnable demo — one file, `lib/main.dart` — that walks the
+whole path: render → receipts → outline jump → position restore. `flutter run` it on
+android / ios / macos.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

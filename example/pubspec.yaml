@@ -1,0 +1,27 @@
+name: hyperlens_example
+description: "Demonstrates every part of hyperlens: render a document, route the receipts, jump from the outline, restore the reading position."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+  flutter: '>=3.27.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 被演示的包：开发期指向仓库根目录。
+  hyperlens:
+    path: ../
+  # 宿主侧唯一的平台依赖。官方的 webview_flutter 只实现 android / ios / macos，
+  # 桌面另外两平台（windows / linux）没有官方实现 —— 示例在那边降级成「看载荷」，
+  # 见 lib/main.dart 里的 _hasWebView。
+  webview_flutter: ^4.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

@@ -80,6 +80,11 @@ await controller.runJavaScript(
 自己拼页面或做诊断时才需要 `package:hyperlens/advanced.dart`（HTML 注入顺序、
 标签扫描、Markdown 链接解析等）。主入口只保留「用这个包」需要的符号。
 
+## 示例
+
+[`example/`](example/) 是可运行的演示（单文件 `lib/main.dart`）：渲染 → 回执 →
+目录跳转 → 位置还原，在 android / ios / macos 上 `flutter run` 直接看。
+
 ## 许可证
 
 MIT —— 见 [LICENSE](LICENSE)。

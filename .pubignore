@@ -9,6 +9,15 @@ build/
 tool/
 docs/
 
+# 示例里跑过构建就会留下的产物：平台脚手架要留（能直接 flutter run），
+# 但 CocoaPods 缓存、pod 锁文件、Flutter 临时目录和编译产物一律不进包。
+Podfile.lock
+**/Pods/
+**/.symlinks/
+**/Flutter/ephemeral/
+example/build/
+example/.dart_tool/
+
 # 中文文档不进包：pub 只认根目录的 README.md / CHANGELOG.md，
 # 多出一个 CHANGELOG.cn.md 会触发「请把它重命名为 CHANGELOG.md」的 warning，
 # 而我们必须把 warning 当失败。中文版留在仓库里，链接用绝对地址。
