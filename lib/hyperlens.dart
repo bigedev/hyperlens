@@ -11,7 +11,8 @@
 /// - 画界面：宿主自己的抽屉、工具栏、主题。
 library;
 
-export 'src/asset/web_assets.dart';
+export 'src/asset/asset_loader.dart';
+export 'src/asset/hyperlens_assets.dart';
 export 'src/html/html_anchor.dart';
 export 'src/html/html_document_style.dart';
 export 'src/markdown/bridge.dart';
@@ -26,4 +27,4 @@ export 'src/model/html_outline.dart';
 export 'src/model/markdown_outline.dart';
 export 'src/model/preview_anchor.dart';
 export 'src/model/preview_focus.dart';
-export 'src/protocol/js_protocol.dart';
+export 'src/protocol/hyperlens_bridge.dart';

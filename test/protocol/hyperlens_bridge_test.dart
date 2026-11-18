@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:hyperlens/src/protocol/js_protocol.dart';
+import 'package:hyperlens/src/protocol/hyperlens_bridge.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,21 +18,21 @@ void main() {
       final String html = File(path).readAsStringSync();
       expect(
         html,
-        contains('window.${JsProtocol.channel}'),
-        reason: '模板里的 JS 通道名与 JsProtocol.channel（${JsProtocol.channel}）不一致',
+        contains('window.${HyperlensBridge.channelName}'),
+        reason: '模板里的 JS 通道名与 HyperlensBridge.channelName（${HyperlensBridge.channelName}）不一致',
       );
       expect(
         html,
-        contains("post('${JsProtocol.receiptPrefix}'"),
+        contains("post('${HyperlensBridge.receiptPrefix}'"),
         reason:
-            '模板里的回执前缀与 JsProtocol.receiptPrefix（${JsProtocol.receiptPrefix}）不一致',
+            '模板里的回执前缀与 HyperlensBridge.receiptPrefix（${HyperlensBridge.receiptPrefix}）不一致',
       );
     });
   }
 
   test('协议常量不带多余空白（前缀自带一个空格，解析靠它切凭据）', () {
-    expect(JsProtocol.channel.trim(), JsProtocol.channel);
-    expect(JsProtocol.receiptPrefix, endsWith(' '));
-    expect(JsProtocol.receiptPrefix.trim(), isNotEmpty);
+    expect(HyperlensBridge.channelName.trim(), HyperlensBridge.channelName);
+    expect(HyperlensBridge.receiptPrefix, endsWith(' '));
+    expect(HyperlensBridge.receiptPrefix.trim(), isNotEmpty);
   });
 }

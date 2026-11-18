@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:hyperlens/src/asset/web_assets.dart';
+import 'package:hyperlens/src/asset/hyperlens_assets.dart';
 import 'package:hyperlens/src/markdown/escape.dart';
 import 'package:hyperlens/src/markdown/payload.dart';
 import 'package:hyperlens/src/model/preview_anchor.dart';
@@ -70,21 +70,21 @@ void main() {
         '<body style="background: /*__MD_BACKGROUND__*/"></body>';
 
     Future<String> fakeLoad(String path) async => switch (path) {
-          WebAssets.markdownViewHtml => template,
-          WebAssets.mdDarkCss => 'DARK-THEME',
-          WebAssets.mdLightCss => 'LIGHT-THEME',
-          WebAssets.hljsDarkCss => 'DARK-HLJS',
-          WebAssets.hljsLightCss => 'LIGHT-HLJS',
-          WebAssets.mdInkCss => 'INK-THEME',
-          WebAssets.hljsInkCss => 'INK-HLJS',
-          WebAssets.markedJs => 'MARKED',
-          WebAssets.purifyJs => 'PURIFY',
-          WebAssets.highlightJs => 'HLJS',
-          WebAssets.highlightDartJs => 'HLJS-DART',
-          WebAssets.katexCss => 'KATEX-CSS',
-          WebAssets.katexJs => 'KATEX-JS',
-          WebAssets.mhchemJs => 'MHCHEM-JS',
-          WebAssets.mermaidJs => 'MERMAID-JS',
+          HyperlensAssets.markdownViewHtml => template,
+          HyperlensAssets.mdDarkCss => 'DARK-THEME',
+          HyperlensAssets.mdLightCss => 'LIGHT-THEME',
+          HyperlensAssets.hljsDarkCss => 'DARK-HLJS',
+          HyperlensAssets.hljsLightCss => 'LIGHT-HLJS',
+          HyperlensAssets.mdInkCss => 'INK-THEME',
+          HyperlensAssets.hljsInkCss => 'INK-HLJS',
+          HyperlensAssets.markedJs => 'MARKED',
+          HyperlensAssets.purifyJs => 'PURIFY',
+          HyperlensAssets.highlightJs => 'HLJS',
+          HyperlensAssets.highlightDartJs => 'HLJS-DART',
+          HyperlensAssets.katexCss => 'KATEX-CSS',
+          HyperlensAssets.katexJs => 'KATEX-JS',
+          HyperlensAssets.mhchemJs => 'MHCHEM-JS',
+          HyperlensAssets.mermaidJs => 'MERMAID-JS',
           _ => throw StateError('没这个资源：$path'),
         };
 
@@ -159,7 +159,7 @@ void main() {
       const String twice = '/*__PAYLOAD__*/ 与 /*__PAYLOAD__*/';
       final String html = await buildMarkdownHtml(
         load: (String path) async =>
-            path == WebAssets.markdownViewHtml ? twice : 'X',
+            path == HyperlensAssets.markdownViewHtml ? twice : 'X',
         dark: false,
         background: '#000000',
         foreground: '#e6edf3',
@@ -202,9 +202,9 @@ void main() {
         markdown: '# 标题\n\n正文，没有公式。',
       );
 
-      expect(loaded, isNot(contains(WebAssets.katexCss)));
-      expect(loaded, isNot(contains(WebAssets.katexJs)));
-      expect(loaded, isNot(contains(WebAssets.mhchemJs)));
+      expect(loaded, isNot(contains(HyperlensAssets.katexCss)));
+      expect(loaded, isNot(contains(HyperlensAssets.katexJs)));
+      expect(loaded, isNot(contains(HyperlensAssets.mhchemJs)));
       expect(html.contains('KATEX'), isFalse);
       expect(html.contains('/*__'), isFalse, reason: '占位必须被换成空串，不能留在页面里');
     });
@@ -270,8 +270,8 @@ void main() {
         markdown: '```mermaid\ngraph TD;\nA-->B;\n```\n',
       );
 
-      expect(loaded, contains(WebAssets.mermaidJs));
-      expect(loaded, isNot(contains(WebAssets.katexJs)));
+      expect(loaded, contains(HyperlensAssets.mermaidJs));
+      expect(loaded, isNot(contains(HyperlensAssets.katexJs)));
       expect(html.contains('MERMAID-JS'), isTrue);
       expect(html.contains('KATEX-JS'), isFalse);
     });
@@ -291,8 +291,8 @@ void main() {
         markdown: '# 标题',
       );
 
-      expect(loaded, isNot(contains(WebAssets.mermaidJs)));
-      expect(loaded, isNot(contains(WebAssets.katexJs)));
+      expect(loaded, isNot(contains(HyperlensAssets.mermaidJs)));
+      expect(loaded, isNot(contains(HyperlensAssets.katexJs)));
       expect(html.contains('MERMAID'), isFalse);
       expect(html.contains('KATEX'), isFalse);
       expect(html.contains('/*__'), isFalse);

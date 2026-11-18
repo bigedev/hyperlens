@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hyperlens/src/asset/web_assets.dart';
+import 'package:hyperlens/src/asset/hyperlens_assets.dart';
 import 'package:hyperlens/src/html/html_document_style.dart';
 import 'package:hyperlens/src/markdown/payload.dart';
 import 'package:hyperlens/src/model/preview_anchor.dart';
@@ -215,7 +215,7 @@ void main() {
 
     test('模板替换会把焦点脚本内联进页面（占位符不能剩下）', () async {
       Future<String> load(String path) async => switch (path) {
-            WebAssets.markdownViewHtml =>
+            HyperlensAssets.markdownViewHtml =>
               '<script>/*__FOCUS_JS__*/</script><script>/*__PAYLOAD__*/</script>',
             _ => 'X',
           };

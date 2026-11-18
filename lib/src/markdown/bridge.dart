@@ -1,6 +1,6 @@
 import '../model/markdown_outline.dart';
 import '../model/preview_anchor.dart';
-import '../protocol/js_protocol.dart';
+import '../protocol/hyperlens_bridge.dart';
 
 /// 页面 → Dart 的回执（模板 `markdown_view.html` 里 `HyperLens.postMessage` 的约定）。
 ///
@@ -23,10 +23,10 @@ sealed class MarkdownBridgeEvent {
 
   /// 解析一条回执。认不出来的一律归到 [Unknown]（上层当状态文字显示）。
   static MarkdownBridgeEvent parse(String message) {
-    if (message.startsWith(JsProtocol.receiptPrefix)) {
+    if (message.startsWith(HyperlensBridge.receiptPrefix)) {
       final (String? token, String? rest) = _splitToken(
         message,
-        JsProtocol.receiptPrefix,
+        HyperlensBridge.receiptPrefix,
       );
       if (token == null || rest == null) {
         return Unknown(message);
@@ -80,7 +80,7 @@ sealed class MarkdownBridgeEvent {
     return (rest.substring(0, sep), rest.substring(sep + 1));
   }
 
-  // `render ` 前缀与模板共享，定义在 [JsProtocol]（避免 Dart 两份、模板五份各写各的）
+  // `render ` 前缀与模板共享，定义在 [HyperlensBridge]（避免 Dart 两份、模板五份各写各的）
   static const String _linkPrefix = 'link ';
   static const String _topPrefix = 'top ';
   static const String _outlinePrefix = 'outline ';

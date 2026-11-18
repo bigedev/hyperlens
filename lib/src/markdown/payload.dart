@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../asset/web_assets.dart';
+import '../asset/hyperlens_assets.dart';
 import '../model/preview_anchor.dart';
 import '../model/preview_focus.dart';
 import 'escape.dart';
@@ -61,27 +61,27 @@ Future<String> buildMarkdownHtml({
   bool ink = false,
 }) async {
   final MarkdownExtras extras = detectMarkdownExtras(markdown);
-  final String html = await load(WebAssets.markdownViewHtml);
+  final String html = await load(HyperlensAssets.markdownViewHtml);
   final String mdCss = await load(
-    dark ? WebAssets.mdDarkCss : WebAssets.mdLightCss,
+    dark ? HyperlensAssets.mdDarkCss : HyperlensAssets.mdLightCss,
   );
   final String hljsCss = await load(
-    dark ? WebAssets.hljsDarkCss : WebAssets.hljsLightCss,
+    dark ? HyperlensAssets.hljsDarkCss : HyperlensAssets.hljsLightCss,
   );
   // 墨水屏档在浅色表之上**再叠一层覆盖**：布局规则仍来自 light，`*-ink.css`
   // 只做两件事 —— 把带颜色的变量压成黑白、把"靠浅灰底分层"换成 1px 黑线。
   // 单独维护一份完整 ink 表会跟上游 GitHub 样式漂移，覆盖式的维护成本低得多。
   final String mdThemeCss =
-      ink ? '$mdCss\n${await load(WebAssets.mdInkCss)}' : mdCss;
+      ink ? '$mdCss\n${await load(HyperlensAssets.mdInkCss)}' : mdCss;
   final String hljsThemeCss =
-      ink ? '$hljsCss\n${await load(WebAssets.hljsInkCss)}' : hljsCss;
+      ink ? '$hljsCss\n${await load(HyperlensAssets.hljsInkCss)}' : hljsCss;
   // 公式（含化学式）：只有这篇文档真的写了公式才加载。mhchem 依赖全局 katex，
   // 模板里必须排在 katex 之后（见 markdown_view.html 的注释）。
-  final String katexCss = extras.math ? await load(WebAssets.katexCss) : '';
-  final String katexJs = extras.math ? await load(WebAssets.katexJs) : '';
-  final String mhchemJs = extras.math ? await load(WebAssets.mhchemJs) : '';
+  final String katexCss = extras.math ? await load(HyperlensAssets.katexCss) : '';
+  final String katexJs = extras.math ? await load(HyperlensAssets.katexJs) : '';
+  final String mhchemJs = extras.math ? await load(HyperlensAssets.mhchemJs) : '';
   // 图表：只有出现 ```mermaid 围栏才内联 3.57 MB（Mermaid 12.x 更大，不用）。
-  final String mermaidJs = extras.mermaid ? await load(WebAssets.mermaidJs) : '';
+  final String mermaidJs = extras.mermaid ? await load(HyperlensAssets.mermaidJs) : '';
   return html
       .replaceAll('/*__MD_BACKGROUND__*/', background)
       .replaceAll('/*__MD_FOREGROUND__*/', foreground)
@@ -91,22 +91,22 @@ Future<String> buildMarkdownHtml({
       .replaceFirst('/*__KATEX_CSS__*/', katexCss)
       .replaceFirst(
         '/*__MARKED_JS__*/',
-        await load(WebAssets.markedJs),
+        await load(HyperlensAssets.markedJs),
       )
       // marked 不做 sanitize（v12 起连 sanitize 选项都删了），作者的 HTML 会原样
       // 回到 DOM。页面与回环资源服务同源（挂载仓库根），一个 <img onerror> 就够
       // 读出 .git/config 里的凭据 —— 所以输出必须过白名单清洗，见 D7。
       .replaceFirst(
         '/*__DOMPURIFY_JS__*/',
-        await load(WebAssets.purifyJs),
+        await load(HyperlensAssets.purifyJs),
       )
       .replaceFirst(
         '/*__HLJS_JS__*/',
-        await load(WebAssets.highlightJs),
+        await load(HyperlensAssets.highlightJs),
       )
       .replaceFirst(
         '/*__HLJS_DART_JS__*/',
-        await load(WebAssets.highlightDartJs),
+        await load(HyperlensAssets.highlightDartJs),
       )
       .replaceFirst('/*__KATEX_JS__*/', katexJs)
       .replaceFirst('/*__MHCHEM_JS__*/', mhchemJs)

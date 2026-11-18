@@ -1,30 +1,30 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hyperlens/src/asset/web_assets.dart';
+import 'package:hyperlens/src/asset/hyperlens_assets.dart';
 
-/// `assets/web/` 的路径只允许写在 [WebAssets] 里，而且必须真的存在。
+/// `assets/web/` 的路径只允许写在 [HyperlensAssets] 里，而且必须真的存在。
 ///
 /// 这两件事**都不会编译失败**：写错路径是运行时 `Asset not found`（那一侧渲染白屏），
 /// 而改资源文件名后忘了同步调用方，同样只在真机上才看见。前者靠「文件存在」断言，
 /// 后者靠「lib 里不许再有裸路径」断言。
 void main() {
   const List<String> paths = <String>[
-    WebAssets.markdownViewHtml,
-    WebAssets.mdLightCss,
-    WebAssets.mdDarkCss,
-    WebAssets.mdInkCss,
-    WebAssets.hljsLightCss,
-    WebAssets.hljsDarkCss,
-    WebAssets.hljsInkCss,
-    WebAssets.markedJs,
-    WebAssets.purifyJs,
-    WebAssets.highlightJs,
-    WebAssets.highlightDartJs,
-    WebAssets.katexJs,
-    WebAssets.mhchemJs,
-    WebAssets.katexCss,
-    WebAssets.mermaidJs,
+    HyperlensAssets.markdownViewHtml,
+    HyperlensAssets.mdLightCss,
+    HyperlensAssets.mdDarkCss,
+    HyperlensAssets.mdInkCss,
+    HyperlensAssets.hljsLightCss,
+    HyperlensAssets.hljsDarkCss,
+    HyperlensAssets.hljsInkCss,
+    HyperlensAssets.markedJs,
+    HyperlensAssets.purifyJs,
+    HyperlensAssets.highlightJs,
+    HyperlensAssets.highlightDartJs,
+    HyperlensAssets.katexJs,
+    HyperlensAssets.mhchemJs,
+    HyperlensAssets.katexCss,
+    HyperlensAssets.mermaidJs,
   ];
 
   test('清单与常量表同步（新增资源时把上面这份列全）', () {
@@ -54,7 +54,7 @@ void main() {
       if (entity is! File || !entity.path.endsWith('.dart')) {
         continue;
       }
-      if (entity.path.endsWith('asset/web_assets.dart')) {
+      if (entity.path.endsWith('asset/hyperlens_assets.dart')) {
         continue;
       }
       final List<String> lines = entity.readAsLinesSync();
@@ -65,6 +65,6 @@ void main() {
       }
     }
 
-    expect(hits, isEmpty, reason: '改用 WebAssets.*：\n${hits.join('\n')}');
+    expect(hits, isEmpty, reason: '改用 HyperlensAssets.*：\n${hits.join('\n')}');
   });
 }
