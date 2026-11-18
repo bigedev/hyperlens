@@ -1,0 +1,75 @@
+/*
+ * 墨水屏（单色）语法高亮反白版：黑底白字。
+ *
+ * 由 `hljs-ink.css` 逐通道反相（255 - v）得到：布局与灰阶关系与浅色版
+ * 完全一致，只是黑白对调。加载在 `hljs-dark.css` 之后（浅色版是加载在 light 之后）。
+ */
+.hljs {
+  color: #ffffff;
+  background: #000000;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #919191;
+  font-style: italic;
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-formula,
+.hljs-section,
+.hljs-name,
+.hljs-selector-tag,
+.hljs-subst,
+.hljs-literal,
+.hljs-type {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-attribute,
+.hljs-meta .hljs-string,
+.hljs-built_in,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: #cccccc;
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-class,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-title {
+  color: #b2b2b2;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}
+
+/* diff 片段：不靠底色，靠下划线 / 反白 */
+.hljs-addition {
+  color: #ffffff;
+  background: transparent;
+  border-bottom: 1px solid #ffffff;
+}
+
+.hljs-deletion {
+  color: #000000;
+  background: #ffffff;
+}

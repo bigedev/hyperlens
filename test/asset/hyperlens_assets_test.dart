@@ -14,9 +14,11 @@ void main() {
     HyperlensAssets.mdLightCss,
     HyperlensAssets.mdDarkCss,
     HyperlensAssets.mdInkCss,
+    HyperlensAssets.mdInkDarkCss,
     HyperlensAssets.hljsLightCss,
     HyperlensAssets.hljsDarkCss,
     HyperlensAssets.hljsInkCss,
+    HyperlensAssets.hljsInkDarkCss,
     HyperlensAssets.markedJs,
     HyperlensAssets.purifyJs,
     HyperlensAssets.highlightJs,
@@ -28,7 +30,7 @@ void main() {
   ];
 
   test('清单与常量表同步（新增资源时把上面这份列全）', () {
-    expect(paths.length, 15, reason: '常量表增减了就要同步这里，否则下面两条是残的');
+    expect(paths.length, 17, reason: '常量表增减了就要同步这里，否则下面两条是残的');
   });
 
   test('表里的资源都真的存在', () {

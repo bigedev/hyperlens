@@ -89,13 +89,18 @@ Future<String> buildMarkdownHtml({
   final String hljsCss = await load(
     dark ? HyperlensAssets.hljsDarkCss : HyperlensAssets.hljsLightCss,
   );
-  // 墨水屏档在浅色表之上**再叠一层覆盖**：布局规则仍来自 light，`*-ink.css`
-  // 只做两件事 —— 把带颜色的变量压成黑白、把"靠浅灰底分层"换成 1px 黑线。
+  // 墨水屏档在主题表之上**再叠一层覆盖**：布局规则仍来自 light/dark，`*-ink.css`
+  // 只做两件事 —— 把带颜色的变量压成黑白、把"靠浅灰底分层"换成 1px 线条。
   // 单独维护一份完整 ink 表会跟上游 GitHub 样式漂移，覆盖式的维护成本低得多。
-  final String mdThemeCss =
-      ink ? '$mdCss\n${await load(HyperlensAssets.mdInkCss)}' : mdCss;
-  final String hljsThemeCss =
-      ink ? '$hljsCss\n${await load(HyperlensAssets.hljsInkCss)}' : hljsCss;
+  //
+  // 覆盖层有两份：浅色（墨水屏默认态，白底黑字）与反白版（深色，黑底白字）。
+  // 选哪份跟着 dark 走 —— 墨水屏也能开深色，那时不该把浅色覆盖层叠上去。
+  final String mdThemeCss = ink
+      ? '$mdCss\n${await load(dark ? HyperlensAssets.mdInkDarkCss : HyperlensAssets.mdInkCss)}'
+      : mdCss;
+  final String hljsThemeCss = ink
+      ? '$hljsCss\n${await load(dark ? HyperlensAssets.hljsInkDarkCss : HyperlensAssets.hljsInkCss)}'
+      : hljsCss;
 
   /// 增强资产：读不到就按缺失处理（正文照常，公式/图表这一块空着）。
   Future<String> optional(String path) async {

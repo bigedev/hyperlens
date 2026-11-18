@@ -9,3 +9,12 @@
 - 与预览同一次解析得出的大纲与语法树，位置都落在源码行上。
 - 资产（marked、DOMPurify、KaTeX、mhchem、highlight.js、Mermaid）改由包声明，
   宿主不再声明同名路径。
+- 对外符号：`MarkdownPage` 是唯一的渲染入口；其余是 `HyperlensAssets`、
+  `HyperlensBridge`、`HyperlensTheme`、`HyperlensLogger` 与 `HyperlensAssetLoader`
+  （Flutter 侧用 `RootBundleAssetLoader`）。
+- WebView 通道名改为注入模板，不再写死，宿主可以注册自己的名字。
+- 增强资产（KaTeX、mhchem、Mermaid）缺失时降级为纯文本，并通过 `HyperlensLogger`
+  上报，而不是整页失败。
+- `HyperlensTheme` 把深色与墨水屏当成两个独立维度：墨水屏是叠在主题表之上的单色
+  覆盖层，深浅两态各发一份（默认态 `*-ink.css` 白底黑字，反白版 `*-ink-dark.css`
+  黑底白字）。

@@ -34,8 +34,11 @@ class HyperlensAssets {
 
   static const String mdDarkCss = '$prefix/md-dark.css';
 
-  /// 墨水屏：叠在 light 之上的覆盖层，不是完整主题。
+  /// 墨水屏（默认态，白底黑字）：叠在 light 之上的单色覆盖层，不是完整主题。
   static const String mdInkCss = '$prefix/md-ink.css';
+
+  /// 墨水屏深色（黑底白字）：[mdInkCss] 的反白版，叠在 dark 之上。
+  static const String mdInkDarkCss = '$prefix/md-ink-dark.css';
 
   // ---- 代码高亮主题 ----
 
@@ -44,6 +47,9 @@ class HyperlensAssets {
   static const String hljsDarkCss = '$prefix/hljs-dark.css';
 
   static const String hljsInkCss = '$prefix/hljs-ink.css';
+
+  /// 墨水屏深色的语法高亮反白版（[hljsInkCss] 的对调），叠在 dark 之上。
+  static const String hljsInkDarkCss = '$prefix/hljs-ink-dark.css';
 
   // ---- 脚本 ----
 
@@ -80,7 +86,7 @@ class HyperlensAssets {
   /// 没有增量能力。
   static const String mermaidJs = '$prefix/mermaid.min.js';
 
-  /// 全部随包资产（15 项）。
+  /// 全部随包资产（17 项）。
   ///
   /// 给使用方校验打包是否完整用：数量对不上说明 pubspec 的 `flutter: assets:`
   /// 或发布产物漏了文件 —— 那条错误在运行期只表现为白屏，不会编译失败。
@@ -89,9 +95,11 @@ class HyperlensAssets {
     mdLightCss,
     mdDarkCss,
     mdInkCss,
+    mdInkDarkCss,
     hljsLightCss,
     hljsDarkCss,
     hljsInkCss,
+    hljsInkDarkCss,
     markedJs,
     purifyJs,
     highlightJs,

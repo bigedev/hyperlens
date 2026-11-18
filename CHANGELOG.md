@@ -17,3 +17,6 @@ Unreleased. First extraction from the preview implementation of an editor app.
   so a host can register its own name.
 - Missing enhanced assets (KaTeX, mhchem, Mermaid) degrade to plain text and report
   through `HyperlensLogger` instead of failing the whole page.
+- `HyperlensTheme` treats dark and ink as independent axes: ink is a monochrome
+  overlay shipped in both polarities (`*-ink.css` for the default light e-ink look,
+  `*-ink-dark.css` for its inverse).

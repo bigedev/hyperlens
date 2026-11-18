@@ -59,7 +59,7 @@ void main() {
       expect(assets.loaded, isNot(contains(HyperlensAssets.mdInkCss)));
     });
 
-    test('墨水屏档：浅色表打底，再叠 ink 覆盖层', () async {
+    test('墨水屏默认态：浅色表打底，再叠单色覆盖层', () async {
       final _FakeAssets assets = _FakeAssets(template);
       await page(theme: HyperlensTheme.ink).render(assets: assets);
 
@@ -67,6 +67,18 @@ void main() {
       expect(assets.loaded, contains(HyperlensAssets.mdInkCss));
       expect(assets.loaded, isNot(contains(HyperlensAssets.mdDarkCss)));
       expect(assets.loaded, contains(HyperlensAssets.hljsInkCss));
+      expect(assets.loaded, isNot(contains(HyperlensAssets.mdInkDarkCss)));
+    });
+
+    test('墨水屏深色：dark 表打底，叠的是反白版覆盖层', () async {
+      final _FakeAssets assets = _FakeAssets(template);
+      await page(theme: HyperlensTheme.inkDark).render(assets: assets);
+
+      expect(assets.loaded, contains(HyperlensAssets.mdDarkCss));
+      expect(assets.loaded, contains(HyperlensAssets.mdInkDarkCss));
+      expect(assets.loaded, isNot(contains(HyperlensAssets.mdInkCss)));
+      expect(assets.loaded, contains(HyperlensAssets.hljsInkDarkCss));
+      expect(assets.loaded, isNot(contains(HyperlensAssets.hljsInkCss)));
     });
   });
 

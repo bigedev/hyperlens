@@ -1,0 +1,147 @@
+/*
+ * 墨水屏（单色）正文反白版：黑底白字。
+ *
+ * 由 `md-ink.css` 逐通道反相（255 - v）得到：布局与灰阶关系与浅色版
+ * 完全一致，只是黑白对调。加载在 `md-dark.css` 之后（浅色版是加载在 light 之后）。
+ */
+.markdown-body {
+  color-scheme: dark;
+  --fgColor-default: #ffffff;
+  /* 次要文字留一档灰：全白会分不出引用、脚注、h6 */
+  --fgColor-muted: #b2b2b2;
+  --fgColor-accent: #ffffff;
+  --fgColor-success: #ffffff;
+  --fgColor-attention: #ffffff;
+  --fgColor-danger: #ffffff;
+  --fgColor-done: #ffffff;
+  --bgColor-default: #000000;
+  /* 表头斑马纹 / 代码块 / 行内代码的底色：一律黑，边界交给白线 */
+  --bgColor-muted: #000000;
+  --bgColor-neutral-muted: #000000;
+  --bgColor-attention-muted: #000000;
+  --borderColor-default: #ffffff;
+  --borderColor-muted: #ffffff;
+  --borderColor-neutral-muted: #ffffff;
+  --borderColor-accent-emphasis: #ffffff;
+  --borderColor-success-emphasis: #ffffff;
+  --borderColor-attention-emphasis: #ffffff;
+  --borderColor-danger-emphasis: #ffffff;
+  --borderColor-done-emphasis: #ffffff;
+  --focus-outlineColor: #ffffff;
+  /* 语法高亮：全部灰阶，靠粗细与斜体区分关键字 */
+  --color-prettylights-syntax-comment: #919191;
+  --color-prettylights-syntax-constant: #ffffff;
+  --color-prettylights-syntax-constant-other-reference-link: #ffffff;
+  --color-prettylights-syntax-entity: #ffffff;
+  --color-prettylights-syntax-storage-modifier-import: #ffffff;
+  --color-prettylights-syntax-entity-tag: #ffffff;
+  --color-prettylights-syntax-keyword: #ffffff;
+  --color-prettylights-syntax-string: #cccccc;
+  --color-prettylights-syntax-variable: #b2b2b2;
+  --color-prettylights-syntax-brackethighlighter-unmatched: #ffffff;
+  --color-prettylights-syntax-brackethighlighter-angle: #919191;
+  --color-prettylights-syntax-invalid-illegal-text: #000000;
+  --color-prettylights-syntax-invalid-illegal-bg: #ffffff;
+  --color-prettylights-syntax-carriage-return-text: #000000;
+  --color-prettylights-syntax-carriage-return-bg: #ffffff;
+  --color-prettylights-syntax-string-regexp: #cccccc;
+  --color-prettylights-syntax-markup-list: #ffffff;
+  --color-prettylights-syntax-markup-heading: #ffffff;
+  --color-prettylights-syntax-markup-italic: #ffffff;
+  --color-prettylights-syntax-markup-bold: #ffffff;
+  --color-prettylights-syntax-markup-deleted-text: #000000;
+  --color-prettylights-syntax-markup-deleted-bg: #ffffff;
+  --color-prettylights-syntax-markup-inserted-text: #ffffff;
+  --color-prettylights-syntax-markup-inserted-bg: #000000;
+  --color-prettylights-syntax-markup-changed-text: #ffffff;
+  --color-prettylights-syntax-markup-changed-bg: #000000;
+  --color-prettylights-syntax-markup-ignored-text: #000000;
+  --color-prettylights-syntax-markup-ignored-bg: #ffffff;
+  --color-prettylights-syntax-meta-diff-range: #ffffff;
+  --color-prettylights-syntax-sublimelinter-gutter-mark: #919191;
+}
+
+/* 链接：靠下划线而不是颜色区分 */
+.markdown-body a {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.markdown-body a:not([href]) {
+  text-decoration: none;
+}
+
+/* 代码块 / 行内代码：黑底 + 1px 白边 */
+.markdown-body pre,
+.markdown-body .highlight pre {
+  background-color: #000000;
+  border: 1px solid #ffffff;
+}
+
+.markdown-body code,
+.markdown-body tt {
+  background-color: #000000;
+  border: 1px solid #ffffff;
+}
+
+.markdown-body pre code,
+.markdown-body pre tt,
+.markdown-body .highlight pre code {
+  border: 0;
+  background-color: transparent;
+}
+
+.markdown-body kbd {
+  background-color: #000000;
+  border: 1px solid #ffffff;
+  box-shadow: none;
+}
+
+/* 表格：单元格 1px 白边，去掉斑马纹 */
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid #ffffff;
+}
+
+.markdown-body table tr,
+.markdown-body table tr:nth-child(2n) {
+  background-color: #000000;
+  border-top: 1px solid #ffffff;
+}
+
+.markdown-body blockquote {
+  color: #ffffff;
+  border-left: 3px solid #ffffff;
+}
+
+.markdown-body hr {
+  background-color: #ffffff;
+}
+
+.markdown-body mark {
+  background-color: #000000;
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+/* 搜索命中（`mark[data-hyperlens-focus]`）：上面那条是「黑底」，在同样是黑底的纸张上
+   等于只画了一条下划线，真机上看不出「亮在哪」。墨主题没有颜色可用，只能靠
+   明度差 —— 给一级深灰底 + 白描边，配合既有下划线一眼能认出。
+   这条与 markdown_view.html 里那条同特异性（0,2,1），靠「追加在浅色表之后」生效。 */
+.markdown-body mark[data-hyperlens-focus] {
+  background-color: #262626;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+
+.markdown-body img {
+  background-color: transparent;
+}
+
+.markdown-body .markdown-alert {
+  border-left: 3px solid #ffffff;
+}
+
+.markdown-body .markdown-alert .markdown-alert-title {
+  color: #ffffff;
+}
