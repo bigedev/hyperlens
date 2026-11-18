@@ -55,6 +55,103 @@ abstract final class PreviewSyntaxLimits {
   static const int maxDepth = 8;
 }
 
+/// 一处**可疑**——不是「语法错误」。
+///
+/// Markdown 的解析器从不报错（写错只是被按另一条规则理解），浏览器的 HTML 解析器
+/// 更是把所有错误悄悄修好。所以这一层给的是「大概率不是作者想要的样子」，每条
+/// 都必须**说得出为什么**（[PreviewSyntaxIssue.detail]），否则宁可不报 —— 一个爱
+/// 误报的面板，读者第二次就不看了。
+enum PreviewSyntaxIssueKind {
+  /// 代码围栏没闭合：marked 会把后面的整篇内容当成代码，表现是「突然整段变灰」。
+  unclosedFence('unclosedFence'),
+
+  /// 引用式链接 / 图片没有对应定义，按字面量渲染出来（`[文字][ref]`）。
+  unresolvedReference('unresolvedReference'),
+
+  /// 表格某一行与表头的列数不一致：marked 会按表头列数裁掉多出来的单元格。
+  tableColumnMismatch('tableColumnMismatch'),
+
+  /// HTML 标签没闭合，或结束标签对不上（浏览器已经修好了，但作者写错了）。
+  unclosedTag('unclosedTag'),
+
+  /// 客户端不认识的节点类型（页面与包的版本不同步）。
+  unknownNodeType('unknownNodeType'),
+
+  /// 这段 HTML 里的脚本被摘掉了（预览不执行作者脚本），因此内容可能不完整。
+  strippedScript('strippedScript');
+
+  const PreviewSyntaxIssueKind(this.wireName);
+
+  final String wireName;
+
+  static PreviewSyntaxIssueKind? tryParse(Object? raw) {
+    for (final PreviewSyntaxIssueKind kind in values) {
+      if (kind.wireName == raw) {
+        return kind;
+      }
+    }
+    return null;
+  }
+}
+
+/// 一条问题：种类 + 一句人话 + 落在哪（源码行或 DOM 路径）。
+@immutable
+class PreviewSyntaxIssue {
+  const PreviewSyntaxIssue({
+    required this.kind,
+    this.detail,
+    this.line,
+    this.path,
+  });
+
+  final PreviewSyntaxIssueKind kind;
+
+  /// 一句话说明**为什么这么判**（例如「围栏 ``` 没闭合，后面的内容都成了代码」）。
+  ///
+  /// 由判定方给：页面侧判定的带页面自己的数据（列数、围栏字符），宿主直接展示。
+  final String? detail;
+
+  /// 1 起源码行；HTML 问题按行扫源码时也有，按 DOM 遍历时没有。
+  final int? line;
+
+  /// DOM 路径（HTML）。
+  final String? path;
+
+  bool get hasAnchor => line != null || (path != null && path!.isNotEmpty);
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'kind': kind.wireName,
+        if (detail != null && detail!.isNotEmpty) 'detail': detail,
+        if (line != null) 'line': line,
+        if (path != null && path!.isNotEmpty) 'path': path,
+      };
+
+  static PreviewSyntaxIssue? parse(Object? raw) {
+    if (raw is! Map) {
+      return null;
+    }
+    final PreviewSyntaxIssueKind? kind =
+        PreviewSyntaxIssueKind.tryParse(raw['kind']);
+    if (kind == null) {
+      return null;
+    }
+    final Object? lineRaw = raw['line'];
+    final Object? path = raw['path'];
+    final Object? detail = raw['detail'];
+    return PreviewSyntaxIssue(
+      kind: kind,
+      detail: detail is String && detail.isNotEmpty ? detail : null,
+      line: lineRaw is num && lineRaw.toInt() > 0 ? lineRaw.toInt() : null,
+      path: path is String && path.isNotEmpty ? path : null,
+    );
+  }
+
+  @override
+  String toString() => 'PreviewSyntaxIssue(${kind.wireName}'
+      '${line != null ? ", line: $line" : ""}'
+      '${path != null ? ", path: $path" : ""})';
+}
+
 /// 一个语法节点。
 ///
 /// `type` 直接沿用 marked 的 token type（`heading` / `paragraph` / `code` /
@@ -126,7 +223,20 @@ class PreviewSyntaxTree {
     this.nodes = const <PreviewSyntaxNode>[],
     this.truncated = false,
     this.nodeCount = 0,
+    this.issues = const <PreviewSyntaxIssue>[],
   });
+
+  /// 已知的 Markdown 节点类型（marked 核心 + 本包的扩展）。
+  ///
+  /// 白名单只用来提示「版本不同步」，不参与渲染：多报一条的成本是读者多看一眼，
+  /// 漏报的成本是他以为面板坏了。扩展新增类型时必须同时加到这里。
+  static const Set<String> knownMarkdownTypes = <String>{
+    'heading', 'paragraph', 'code', 'blockquote', 'list', 'list_item',
+    'table', 'hr', 'space', 'html', 'text', 'strong', 'em', 'link',
+    'image', 'codespan', 'br', 'del', 'def', 'escape',
+    // 本包的扩展（见 assets/web/markdown_view.html）
+    'hyperLensMathBlock', 'hyperLensMermaid',
+  };
 
   /// 载荷格式版本：解析侧据此判断要不要兼容老页面。
   static const int currentVersion = 1;
@@ -144,6 +254,40 @@ class PreviewSyntaxTree {
 
   /// **未截断时**的真实节点数（含 children）；0 表示载荷没带，按实际节点数算。
   final int nodeCount;
+
+  /// 这一篇的问题清单（可空）。节点级问题按 [PreviewSyntaxIssue.line] /
+  /// [PreviewSyntaxIssue.path] 与节点对应，对不上的（例如整篇的脚本被摘掉）只在
+  /// 面板顶部汇总。
+  final List<PreviewSyntaxIssue> issues;
+
+  /// 把「宿主 / 解析侧才发现的问题」并进来（例如 HTML 标签扫描只能看源码文本）。
+  ///
+  /// 去重按「种类 + 落点」：同一处同一个问题不该出现两次。
+  PreviewSyntaxTree mergeIssues(List<PreviewSyntaxIssue> extra) {
+    if (extra.isEmpty) {
+      return this;
+    }
+    final Set<String> seen = <String>{
+      for (final PreviewSyntaxIssue issue in issues) _issueKey(issue),
+    };
+    final List<PreviewSyntaxIssue> merged = <PreviewSyntaxIssue>[...issues];
+    for (final PreviewSyntaxIssue issue in extra) {
+      if (seen.add(_issueKey(issue))) {
+        merged.add(issue);
+      }
+    }
+    return PreviewSyntaxTree(
+      kind: kind,
+      version: version,
+      nodes: nodes,
+      truncated: truncated,
+      nodeCount: nodeCount,
+      issues: merged,
+    );
+  }
+
+  static String _issueKey(PreviewSyntaxIssue issue) =>
+      '${issue.kind.wireName}|${issue.line}|${issue.path}';
 
   bool get isEmpty => nodes.isEmpty;
 
@@ -164,6 +308,9 @@ class PreviewSyntaxTree {
         if (nodes.isNotEmpty)
           'nodes': nodes.map((PreviewSyntaxNode n) => n.toJson()).toList(),
         if (truncated) 'truncated': true,
+        if (issues.isNotEmpty)
+          'issues':
+              issues.map((PreviewSyntaxIssue i) => i.toJson()).toList(),
         'nodeCount': count,
       };
 
@@ -189,11 +336,14 @@ class PreviewSyntaxTree {
     }
     final _Budget budget = _Budget();
     if (raw is List) {
+      // 裸数组（模板最早发的形态）：没有 kind，按调用方给的算
+      budget.checkTypes = fallbackKind == PreviewSourceKind.markdown;
       return PreviewSyntaxTree(
         kind: fallbackKind,
         nodes: _parseNodes(raw, budget, 0),
         truncated: budget.truncated,
         nodeCount: budget.total,
+        issues: budget.issues,
       );
     }
     if (raw is Map) {
@@ -205,6 +355,14 @@ class PreviewSyntaxTree {
       final Object? nodeCountRaw = raw['nodeCount'];
       final int reported =
           nodeCountRaw is num ? nodeCountRaw.toInt() : 0;
+      final Object? issuesRaw = raw['issues'];
+      final List<PreviewSyntaxIssue> declared = issuesRaw is List
+          ? issuesRaw
+              .map(PreviewSyntaxIssue.parse)
+              .whereType<PreviewSyntaxIssue>()
+              .toList()
+          : const <PreviewSyntaxIssue>[];
+      budget.checkTypes = kind == PreviewSourceKind.markdown;
       return PreviewSyntaxTree(
         kind: kind,
         version: version is num ? version.toInt() : currentVersion,
@@ -213,6 +371,8 @@ class PreviewSyntaxTree {
         // 载荷带了「未截断前的真实节点数」就用它：被闸门砍掉的部分正是调用方
         // 需要知道「这里还差多少」的地方，按实际收到的数算会把它抹平。
         nodeCount: reported > budget.total ? reported : budget.total,
+        // 页面自己判定的在前（带它那边的细节），解析侧补的在后
+        issues: <PreviewSyntaxIssue>[...declared, ...budget.issues],
       );
     }
     return PreviewSyntaxTree(kind: fallbackKind);
@@ -265,6 +425,9 @@ class PreviewSyntaxTree {
     final String? path = _nonEmpty(raw['path']);
     final int? line = _positiveInt(raw['line']);
     final int? endLine = _positiveInt(raw['endLine']);
+    if (budget.checkTypes && !knownMarkdownTypes.contains(type)) {
+      budget.noteUnknownType(type, line);
+    }
     final Object? childrenRaw = raw['children'];
     List<PreviewSyntaxNode> children = const <PreviewSyntaxNode>[];
     if (childrenRaw is List && childrenRaw.isNotEmpty) {
@@ -315,8 +478,32 @@ class PreviewSyntaxTree {
       '${truncated ? "，已截断" : ""})';
 }
 
-/// 解析过程中的计数器：节点总数与「有没有触到闸门」。
+/// 解析过程中的计数器：节点总数、「有没有触到闸门」、以及顺手攒下的问题。
 class _Budget {
+  /// 解析侧最多攒这么多条问题。一个被改坏的载荷（五万个未知类型节点）不该
+  /// 让宿主的面板滚三屏 —— 这类补充信息宁少不多。
+  static const int maxIssues = 50;
+
   int total = 0;
   bool truncated = false;
+
+  /// 要不要检查节点类型（只有 Markdown 有白名单；HTML 的 type 就是标签名）。
+  bool checkTypes = false;
+
+  final List<PreviewSyntaxIssue> issues = <PreviewSyntaxIssue>[];
+
+  /// 已经报过的未知类型：同一个 `type` 只报一次。按节点各报一条的话，五万个
+  /// 节点会生成五万条一模一样的问题，读者一条也读不进去。
+  final Set<String> _reportedTypes = <String>{};
+
+  void noteUnknownType(String type, int? line) {
+    if (issues.length >= maxIssues || !_reportedTypes.add(type)) {
+      return;
+    }
+    issues.add(PreviewSyntaxIssue(
+      kind: PreviewSyntaxIssueKind.unknownNodeType,
+      detail: type,
+      line: line,
+    ));
+  }
 }

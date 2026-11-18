@@ -204,16 +204,23 @@
       return lines;
     }
 
-    /* ── 语法树骨架（`ast` 回执，见 preview_syntax.dart / 方案 §4）──────────
+    /* ── 语法树（`ast` 回执，见 preview_syntax.dart / 方案 §4）───────────────
        与渲染**同一次 lexer**：下面渲染的 token 循环顺手收集，绝不另起一套解析
        （§4.1 —— 第二个解析器会在 Setext 标题、松散列表这些地方差一到几个 token）。
 
-       首屏只发**骨架**：只有顶层块、没有 inline token、文本截到 120 字。完整树按需拉
-       （`hyperlensSyntaxAst`，尚未实现）。闸门数值与 Dart 侧 `PreviewSyntaxLimits`
-       逐条对应，改一处必须改两处。 */
+       两种形态：
+       - **骨架**：首屏自动发，只有顶层块、不带 inline token；
+       - **完整树**：`window.hyperlensSyntaxAst()` 按需拉，递归子块与 inline token。
+
+       闸门数值与 Dart 侧 `PreviewSyntaxLimits` 逐条对应，改一处必须改两处。
+
+       节点类型一律沿用 marked 的 token type，**不自造** `th` / `li` 这类名字 ——
+       那是与渲染分叉的起点。代价是表格不展开到单元格：marked 的 cell 只是 inline
+       token，硬拆就得自造类型，留给方案确认。 */
     var kSyntaxMaxNodes = 50000;
     var kSyntaxMaxText = 120;
     var kSyntaxMaxBytes = 2097152;   /* 2 MB：按 UTF-16 长度近似，宁可早降级 */
+    var kSyntaxMaxDepth = 8;
 
     function mdSyntaxText(token) {
       var text = token.text != null ? token.text : (token.raw || '');
@@ -223,9 +230,10 @@
         : text;
     }
 
-    /* 一个顶级 token → 骨架节点。行范围与渲染段用的是**同一个 raw**，两者的行数
-       算法必须一致（`raw.split('\n').length - 1` 是这一段的行跨度）。 */
-    function mdSyntaxNode(token, line, raw) {
+    /* 一个 token → 节点。行范围与渲染段用的是**同一个 raw**，两者的行数算法必须
+       一致（`raw.split('\n').length - 1` 是这一段的行跨度）。 */
+    function mdSyntaxNode(token, line) {
+      var raw = token.raw || '';
       var lines = raw.split('\n').length;
       var node = { type: String(token.type || 'unknown'), line: line };
       if (lines > 1) { node.endLine = line + lines - 2; }
@@ -234,6 +242,191 @@
       var text = mdSyntaxText(token);
       if (text) { node.text = text; }
       return node;
+    }
+
+    /* 收一个节点；deep 时递归子块（`list > items`、`blockquote > tokens`）与 inline。
+       子节点的行号**不编**：marked 的 inline token 没有行号，硬塞父块行号会让「第几行」
+       在面板上跳到别处；调用方按「最近的有行号祖先」处理。 */
+    function mdSyntaxCollect(token, line, deep, depth, budget) {
+      if (!token || !token.type) { return null; }
+      if (budget.count >= kSyntaxMaxNodes) { budget.cut = true; return null; }
+      budget.count += 1;
+      var node = mdSyntaxNode(token, line);
+      if (!deep) { return node; }
+      var bucket = token.items || token.tokens || [];
+      if (depth + 1 >= kSyntaxMaxDepth) {
+        if (bucket.length > 0) { budget.cut = true; }
+        return node;
+      }
+      var kids = [];
+      for (var i = 0; i < bucket.length; i++) {
+        var child = mdSyntaxCollect(bucket[i], line, true, depth + 1, budget);
+        if (child) { kids.push(child); }
+        if (budget.cut) { break; }
+      }
+      if (kids.length > 0) { node.children = kids; }
+      return node;
+    }
+
+    /* 整棵树 → JSON（骨架与完整树共用）。字节闸门兜底降级成「只有计数」。
+       **原料由调用方传进来**：本段与渲染段是两个 <script>（本段在全局，渲染在
+       IIFE 里），直接闭包引用渲染段里的 var 会得到 ReferenceError —— 真机实测
+       `mdSyntaxTokens is not defined`，整条 render 回执都变成异常。 */
+    function mdSyntaxJson(tokens, lines, deep, issues) {
+      var budget = { count: 0, cut: false };
+      var nodes = [];
+      for (var i = 0; i < tokens.length; i++) {
+        var node = mdSyntaxCollect(tokens[i], lines[i], deep, 0, budget);
+        if (node) { nodes.push(node); }
+        if (budget.cut) { break; }
+      }
+      var tree = {
+        kind: 'markdown',
+        version: 1,
+        nodeCount: budget.count,
+        truncated: budget.cut,
+        nodes: nodes,
+      };
+      if (issues && issues.length) { tree.issues = issues; }
+      var json = JSON.stringify(tree);
+      if (json.length > kSyntaxMaxBytes) {
+        json = JSON.stringify({
+          kind: 'markdown',
+          version: 1,
+          nodeCount: budget.count,
+          truncated: true,
+          issues: issues && issues.length ? issues : undefined,
+        });
+      }
+      return json;
+    }
+
+    /* ── 语法问题（`ast` 回执里的 `issues`，见 preview_syntax.dart）─────────────
+       只报「大概率不是作者想要的样子」，每条都说得出为什么：一个爱误报的面板，
+       读者第二次就不看了。
+
+       全部只看**源码文本与渲染用的那一份 token**，不再跑第二次解析（§4.1）。
+       三种硬错：代码围栏没闭合、表格某行列数和表头对不上、引用式链接没有定义。 */
+    var kIssueMax = 20;
+
+    function mdIssue(list, kind, line, detail) {
+      if (list.length >= kIssueMax) { return; }
+      list.push({ kind: kind, line: line, detail: detail });
+    }
+
+    /* 整篇扫一遍。返回 `issues` 数组；条数上限与 Dart 侧的面板一致（宁少不多）。 */
+    function mdScanIssues(source) {
+      var out = [];
+      var text = String(source == null ? '' : source);
+      var lines = text.split('\n');
+      var i;
+
+      /* ① 围栏没闭合：按行配对 ``` / ~~~（≥3 个）。marked 不报这个错 —— 它把剩下
+         的内容整段当代码，表现是「突然整段变灰」。顺带记下每段围栏的行范围：
+         后面查引用式链接要跳过代码里的 `[文字][ref]`。 */
+      var fenceRanges = [];
+      var openChar = '';
+      var openLen = 0;
+      var openLine = 0;
+      for (i = 0; i < lines.length; i++) {
+        var fence = lines[i].match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+        if (!fence) { continue; }
+        var mark = fence[1];
+        var ch = mark.charAt(0);
+        if (!openChar) {
+          /* 反引号围栏的信息串里不能再出现反引号（CommonMark），先挡掉这类误判 */
+          if (ch === '`' && fence[2].indexOf('`') >= 0) { continue; }
+          openChar = ch;
+          openLen = mark.length;
+          openLine = i + 1;
+          continue;
+        }
+        if (ch === openChar && mark.length >= openLen) {
+          fenceRanges.push([openLine, i + 1]);
+          openChar = '';
+        }
+      }
+      if (openChar) {
+        mdIssue(out, 'unclosedFence', openLine,
+          '代码围栏 ' + (openChar === '`' ? '```' : '~~~') +
+          ' 没有闭合，从第 ' + openLine + ' 行往下的内容都成了代码');
+      }
+
+      function inFence(line) {
+        for (var k = 0; k < fenceRanges.length; k++) {
+          if (line >= fenceRanges[k][0] && line <= fenceRanges[k][1]) { return true; }
+        }
+        return false;
+      }
+
+      /* ② 引用式链接 / 图片没有对应定义：marked 按字面量渲染（`[文字][ref]` 原样
+         露出来）。定义只认行首的 `[label]:`（与 marked 的 def 规则一致）。 */
+      var defs = Object.create(null);
+      for (i = 0; i < lines.length; i++) {
+        var def = lines[i].match(/^ {0,3}\[([^\[\]]{1,120})\]:\s*\S/);
+        if (def) { defs[def[1].toLowerCase()] = true; }
+      }
+      var use = /!?\[([^\[\]]*)\]\[([^\[\]]*)\]/g;
+      var scanned = 0;
+      var curLine = 1;
+      function lineAt(index) {
+        while (scanned < index) {
+          if (text.charCodeAt(scanned) === 10) { curLine += 1; }
+          scanned += 1;
+        }
+        return curLine;
+      }
+      var hit;
+      while ((hit = use.exec(text)) !== null) {
+        var label = (hit[2] || hit[1]).toLowerCase();
+        if (!label || defs[label]) { continue; }
+        var at = lineAt(hit.index);
+        if (inFence(at)) { continue; }
+        mdIssue(out, 'unresolvedReference', at,
+          '「' + (hit[2] || hit[1]) + '」没有对应定义，会按字面量显示');
+      }
+
+      return out;
+    }
+
+    /* 一行表格源码有几格。**必须数源码**：marked 的 token 已经把每行对齐到表头
+       列数（真机实测：2 格的行被补成 3 格、4 格的行被裁成 3 格），从 token 里
+       根本看不出「作者写错了」。 */
+    function mdTableCells(line) {
+      var s = line.trim();
+      if (s.charAt(0) === '|') { s = s.slice(1); }
+      if (s.charAt(s.length - 1) === '|') { s = s.slice(0, -1); }
+      var cells = 0;
+      var empty = true;
+      for (var i = 0; i < s.length; i++) {
+        var ch = s.charAt(i);
+        if (ch === '\\' && s.charAt(i + 1) === '|') { i += 1; empty = false; continue; }
+        if (ch === '|') { cells += 1; empty = true; continue; }
+        empty = false;
+      }
+      if (!empty || cells === 0) { cells += 1; }
+      return cells;
+    }
+
+    /* ③ 表格某行列数和表头对不上：marked 按表头列数裁掉多出来的单元格。
+       只查顶级块（嵌套在列表 / 引用里的表格要先下钻，收益不抵这份复杂度）。 */
+    function mdScanTableIssues(tokens, lines, out) {
+      for (var i = 0; i < tokens.length; i++) {
+        var token = tokens[i];
+        if (!token || token.type !== 'table') { continue; }
+        var rawLines = String(token.raw || '').split('\n');
+        if (rawLines.length < 3) { continue; }
+        var head = mdTableCells(rawLines[0]);
+        var base = lines[i] || 0;
+        for (var r = 2; r < rawLines.length; r++) {
+          if (!rawLines[r].trim()) { continue; }
+          var cells = mdTableCells(rawLines[r]);
+          if (cells === head) { continue; }
+          mdIssue(out, 'tableColumnMismatch', base ? base + r : null,
+            '表头 ' + head + ' 列，第 ' + (r - 1) + ' 行数据有 ' + cells + ' 列');
+        }
+      }
+      return out;
     }
 
     function mdBlockTop(el) {
@@ -941,7 +1134,10 @@
         });
         var rendered = '';
         var tokens = [];
-        var syntax = [];
+        /* 语法树的原料：渲染循环顺手存下的**(token, 起始行)**。骨架与完整树都从这
+           两份数组算，保证「同一份 token、同一套行号」这个前提不被破坏。 */
+        var mdSyntaxTokens = [];
+        var mdSyntaxLines = [];
         var syntaxOk = false;
         try {
           tokens = window.marked.lexer(payload.markdown, markdownOptions);
@@ -952,9 +1148,10 @@
             var raw = tokens[t].raw || '';
             parts.push('<span class="hyperlens-md-line hyperlens-l-' + sourceLine + '"></span>');
             parts.push(window.marked.parser([tokens[t]], markdownOptions));
-            // 顺手收骨架（与渲染同一次 lexer，不改顺序、不改行号算法）
-            if (syntax.length < kSyntaxMaxNodes) {
-              syntax.push(mdSyntaxNode(tokens[t], sourceLine, raw));
+            // 顺手存原料（与渲染同一次 lexer，不改顺序、不改行号算法）
+            if (mdSyntaxTokens.length < kSyntaxMaxNodes) {
+              mdSyntaxTokens.push(tokens[t]);
+              mdSyntaxLines.push(sourceLine);
             }
             sourceLine += raw.split('\n').length - 1;  // 换行数 = 这一段的行跨度
           }
@@ -1023,24 +1220,19 @@
         // 词法失败的兜底路径**不发**：那时 rendered 由整篇 parse 得到，没有 token
         // 就谈不上骨架，发一个空树会被读成「这文档没有内容」。
         if (syntaxOk) {
-          var syntaxTree = {
-            kind: 'markdown',
-            version: 1,
-            nodeCount: tokens.length,
-            truncated: syntax.length < tokens.length,
-            nodes: syntax,
+          /* 语法问题：骨架与完整树共用同一份（问题不随下钻深度变化）。
+             判定全在页面侧 —— 它手里有源码与渲染用的 token，Dart 那边只有载荷。 */
+          var syntaxIssues = mdScanTableIssues(
+            mdSyntaxTokens, mdSyntaxLines, mdScanIssues(payload.markdown));
+          post('ast ' + payload.token + ' ' +
+               mdSyntaxJson(mdSyntaxTokens, mdSyntaxLines, false, syntaxIssues));
+          // 完整树（含子块与 inline）**按需拉**：结构面板展开某一段时才需要，
+          // 不占首屏。页面上是一条命令，Dart 侧见 HyperlensCommands.requestSyntaxAst。
+          window.hyperlensSyntaxAst = function () {
+            post('ast ' + payload.token + ' ' +
+                 mdSyntaxJson(mdSyntaxTokens, mdSyntaxLines, true, syntaxIssues));
+            return 'ok';
           };
-          var syntaxJson = JSON.stringify(syntaxTree);
-          if (syntaxJson.length > kSyntaxMaxBytes) {
-            // 字节闸门：降级成「只有计数」，调用方仍知道这份文档有多大
-            syntaxJson = JSON.stringify({
-              kind: 'markdown',
-              version: 1,
-              nodeCount: tokens.length,
-              truncated: true,
-            });
-          }
-          post('ast ' + payload.token + ' ' + syntaxJson);
         }
 
         // 「章节」目录的清单：扫 #content 里**顶级子块**中的 h1~h6，顺带把 slug 写成 id

@@ -10,7 +10,13 @@
   自动重扫并重发，不必再靠切字号重载页面。
 - 新增语法树骨架回执（`ast`）：Markdown 与渲染共用同一次 lexer，HTML 用浏览器自己的
   `document` 遍历；载荷按节点数、深度、字节三档闸门裁剪。Dart 侧为
-  `PreviewSyntaxTree` / `PreviewSyntaxNode`（完整树与宿主面板尚未接入）。
+  `PreviewSyntaxTree` / `PreviewSyntaxNode`。
+- 完整语法树（含子块与 inline token）按需拉取：`HyperlensCommands.requestSyntaxAst()`
+  触发页面再发一条 `ast`，与骨架共用同一份 token 与行号。
+- 语法问题清单（`ast` 回执的 `issues`）：页面侧判定代码围栏没闭合、表格某行列数
+  和表头不符、引用式链接没有定义；Dart 侧补 `scanHtmlTagIssues()`
+  （按源码文本扫标签栈，报未闭合与多余的结束标签，浏览器的 `document` 里看不到
+  这些）。两条来源合并时页面在前、解析侧在后，同一处同一类只留一条。
 - 回执协议：渲染完成、点击链接、位置上报、大纲上报、命中已定位、锚点已滚动、
   认不出的消息。
 - 与预览同一次解析得出的大纲与语法树，位置都落在源码行上。

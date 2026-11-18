@@ -12,8 +12,16 @@ Unreleased. First extraction from the preview implementation of an editor app.
   disclosure panel opens or closes, or an image grows — no page reload needed.
 - New syntax-tree skeleton receipt (`ast`): Markdown reuses the same lexer as the render
   pass, HTML walks the browser's own `document`; the payload is clipped by node count,
-  depth and byte gates. Dart side exposes `PreviewSyntaxTree` / `PreviewSyntaxNode`
-  (the full tree and host-side panels are still to come).
+  depth and byte gates. Dart side exposes `PreviewSyntaxTree` / `PreviewSyntaxNode`.
+- The full tree (nested blocks plus inline tokens) is fetched on demand through
+  `HyperlensCommands.requestSyntaxAst()`, sharing the same tokens and line numbers as the
+  skeleton.
+- Syntax issue list (`issues` in the `ast` receipt): the page reports unclosed code
+  fences, table rows whose cell count differs from the header, and reference-style links
+  with no definition; the Dart side adds `scanHtmlTagIssues()`, a tag-stack scan over the
+  source text that finds unclosed and stray end tags the browser's fixed-up `document`
+  no longer shows. When both sources are merged the page's entries come first, and a
+  duplicate (same kind, same place) is dropped.
 - Receipt protocol: render ready, link tapped, position reported, outline reported,
   focus applied, anchor scrolled, unknown message.
 - Source-linked outline and syntax tree built from the same parse.

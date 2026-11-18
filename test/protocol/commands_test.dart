@@ -30,4 +30,13 @@ void main() {
       );
     });
   });
+
+  test('拉完整语法树：带存在性守卫，页面没定义时安静地什么都不做', () {
+    // 守卫不能省：老模板（没有 hyperlensSyntaxAst）上直接调用会抛
+    // ReferenceError，而 runJavaScript 的异常在真机日志里很容易被漏掉
+    expect(
+      HyperlensCommands.requestSyntaxAst(),
+      'window.hyperlensSyntaxAst && window.hyperlensSyntaxAst()',
+    );
+  });
 }

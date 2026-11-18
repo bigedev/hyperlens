@@ -26,6 +26,14 @@ abstract final class HyperlensCommands {
   static String scrollToLine(int line) =>
       'mdScrollToLine(${line < 1 ? 1 : line})';
 
+  /// Markdown：请求一份**完整**语法树（含子块与 inline token）。
+  ///
+  /// 首屏只发骨架（见 `preview_syntax.dart`）—— 完整树重得多，等结构面板真的要
+  /// 展开某一段时再拉。页面收到后会再发一条 `ast` 回执，与骨架同一套闸门。
+  /// 不是滚动原语，但同属「Dart 命令 → 页面」这一个方向，放在一起便于查改名。
+  static String requestSyntaxAst() =>
+      'window.hyperlensSyntaxAst && window.hyperlensSyntaxAst()';
+
   /// HTML：把 DOM 路径 [path] 指向的节点滚到视口顶端。
   static String scrollToPath(String path) =>
       'hyperLensScrollToPath(${_jsString(path)})';

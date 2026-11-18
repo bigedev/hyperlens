@@ -15,6 +15,7 @@ export 'src/asset/asset_loader.dart';
 export 'src/asset/hyperlens_assets.dart';
 export 'src/host/logger.dart';
 export 'src/html/html_anchor.dart';
+export 'src/html/html_tag_scan.dart';
 export 'src/html/html_document_style.dart';
 export 'src/markdown/bridge.dart';
 export 'src/markdown/escape.dart';

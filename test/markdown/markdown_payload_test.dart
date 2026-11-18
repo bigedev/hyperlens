@@ -308,6 +308,40 @@ void main() {
       expect(payload.contains(r'\$'), isFalse, reason: '\$ 不能原样进页面');
     });
 
+    // 语法树：首屏发骨架，完整树按需拉（窗口函数名与 HyperlensCommands 逐字一致）
+    test('真模板：ast 骨架自动发，完整树挂在 window.hyperlensSyntaxAst 上', () async {
+      final String template =
+          await File('assets/web/markdown_view.html').readAsString();
+
+      // 原料必须**显式传参**：辅助函数与渲染段分属两个 <script>，闭包引用渲染段
+      // 里的 var 会 ReferenceError（真机实测 mdSyntaxTokens is not defined）
+      expect(
+        template.contains('mdSyntaxJson(mdSyntaxTokens, mdSyntaxLines, false'),
+        isTrue,
+      );
+      expect(template.contains('window.hyperlensSyntaxAst = function ()'), isTrue);
+      expect(template.contains('mdSyntaxJson(mdSyntaxTokens, mdSyntaxLines, true'), isTrue);
+      // 骨架路径绝不能顺手带上 children：那是完整树的事，首屏多背一份就是白花字节
+      expect(template.contains('if (!deep) { return node; }'), isTrue);
+    });
+
+    // 语法问题（`ast` 回执里的 `issues`）：判定留在页面侧 —— 它手里有源码与渲染
+    // 用的那一次 token，Dart 那边只有载荷，再解析一遍就是第二个解析器。
+    test('真模板：语法问题在页面侧判定，与树走同一条回执', () async {
+      final String template =
+          await File('assets/web/markdown_view.html').readAsString();
+
+      expect(template.contains('function mdScanIssues(source)'), isTrue);
+      expect(
+        template.contains('function mdScanTableIssues(tokens, lines, out)'),
+        isTrue,
+      );
+      // 问题挂在树上：Dart 侧只有 `ast` 这一条通道，别另开一条消息
+      expect(template.contains('tree.issues = issues'), isTrue);
+      // 骨架与完整树共用同一份问题，否则两份回执会打架
+      expect(template.contains('var syntaxIssues = '), isTrue);
+    });
+
     test('真模板：转义占位在公式渲染之后才换回字面量', () async {
       final String template =
           await File('assets/web/markdown_view.html').readAsString();

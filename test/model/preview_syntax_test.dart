@@ -120,6 +120,114 @@ void main() {
     });
   });
 
+  group('问题清单', () {
+    test('页面声明的问题在前，解析侧补的在后', () {
+      final PreviewSyntaxTree tree = PreviewSyntaxTree.parse(<String, Object?>{
+        'kind': 'markdown',
+        'issues': <Object?>[
+          <String, Object?>{
+            'kind': 'unclosedFence',
+            'line': 12,
+            'detail': '围栏 ``` 没闭合',
+          },
+        ],
+        'nodes': <Object?>[
+          <String, Object?>{'type': 'futureBlock', 'line': 3},
+        ],
+      });
+
+      expect(tree.issues, hasLength(2));
+      expect(tree.issues.first.kind, PreviewSyntaxIssueKind.unclosedFence);
+      expect(tree.issues.first.detail, '围栏 ``` 没闭合',
+          reason: '页面侧的细节是它那边才有的，不能被解析侧覆盖');
+      expect(tree.issues.last.kind, PreviewSyntaxIssueKind.unknownNodeType);
+      expect(tree.issues.last.line, 3);
+      expect(tree.issues.last.detail, 'futureBlock');
+    });
+
+    test('认不出种类的问题丢掉那一条，不影响别的', () {
+      final PreviewSyntaxTree tree = PreviewSyntaxTree.parse(<String, Object?>{
+        'kind': 'markdown',
+        'issues': <Object?>[
+          <String, Object?>{'kind': '还没发明的种类', 'line': 1},
+          <String, Object?>{'kind': 'tableColumnMismatch', 'line': 4},
+          'not a map',
+        ],
+        'nodes': <Object?>[<String, Object?>{'type': 'hr', 'line': 1}],
+      });
+
+      expect(tree.issues, hasLength(1));
+      expect(tree.issues.single.kind, PreviewSyntaxIssueKind.tableColumnMismatch);
+      expect(tree.issues.single.line, 4);
+    });
+
+    test('未知类型按类型去重：同一个 type 报一次就够', () {
+      final PreviewSyntaxTree tree =
+          PreviewSyntaxTree.parse(<Object?>[
+        <String, Object?>{'type': 'futureBlock', 'line': 2},
+        <String, Object?>{'type': 'futureBlock', 'line': 9},
+        <String, Object?>{'type': 'anotherFuture', 'line': 10},
+      ]);
+
+      expect(tree.issues, hasLength(2));
+      expect(tree.issues.first.line, 2, reason: '落在第一次出现的地方');
+      expect(tree.issues.last.detail, 'anotherFuture');
+    });
+
+    test('HTML 不查 Markdown 白名单（标签名本来就不在表里）', () {
+      final PreviewSyntaxTree tree = PreviewSyntaxTree.parse(<String, Object?>{
+        'kind': 'html',
+        'nodes': <Object?>[
+          <String, Object?>{'type': 'h2', 'path': 'body>h2:nth(1)'},
+          <String, Object?>{'type': 'my-widget', 'path': 'body>my-widget'},
+        ],
+      });
+
+      expect(tree.issues, isEmpty);
+    });
+
+    test('问题条数有上限：被改坏的载荷不该让面板滚三屏', () {
+      final List<Object?> many = List<Object?>.generate(
+        80,
+        (int i) => <String, Object?>{'type': 'future$i', 'line': i + 1},
+      );
+      final PreviewSyntaxTree tree = PreviewSyntaxTree.parse(many);
+
+      expect(tree.issues, hasLength(50));
+    });
+
+    test('mergeIssues：同一处同一个问题不重复，其余追加', () {
+      const PreviewSyntaxTree tree = PreviewSyntaxTree(
+        kind: PreviewSourceKind.html,
+        issues: <PreviewSyntaxIssue>[
+          PreviewSyntaxIssue(
+            kind: PreviewSyntaxIssueKind.unclosedTag,
+            line: 3,
+            detail: '<span> 没有闭合',
+          ),
+        ],
+      );
+
+      final PreviewSyntaxTree merged = tree.mergeIssues(
+        <PreviewSyntaxIssue>[
+          const PreviewSyntaxIssue(
+            kind: PreviewSyntaxIssueKind.unclosedTag,
+            line: 3,
+            detail: '重复的一条',
+          ),
+          const PreviewSyntaxIssue(
+            kind: PreviewSyntaxIssueKind.unclosedTag,
+            line: 7,
+          ),
+        ],
+      );
+
+      expect(merged.issues, hasLength(2));
+      expect(merged.issues.first.detail, '<span> 没有闭合');
+      expect(merged.issues.last.line, 7);
+    });
+  });
+
   group('序列化', () {
     test('空值省略：1000 个节点不该每个都带 null 字段', () {
       const PreviewSyntaxNode node = PreviewSyntaxNode(type: 'hr');
