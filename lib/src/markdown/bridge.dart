@@ -1,0 +1,145 @@
+import '../model/markdown_outline.dart';
+import '../model/preview_anchor.dart';
+import '../protocol/js_protocol.dart';
+
+/// 页面 → Dart 的回执（模板 `markdown_view.html` 里 `HyperLens.postMessage` 的约定）。
+///
+/// 从 `markdown_view.dart` 拆出来：这些消息的**格式解析**与「收到之后怎么办」是两件事，
+/// 前者是纯函数（能直接在主机上测，不用起 WebView），后者牵扯会话、看门狗与导航策略，
+/// 留在 State 里。
+///
+/// 约定（前缀后跟一个空格）：
+/// - `render <凭据> <结果>` —— 页面**跑到了末尾那段脚本**，是「这次加载真的渲染了」的
+///   唯一凭据（见 `markdown_view.dart` 的渲染看门狗）；
+/// - `link <编码后的 href>` —— 链接被捕获阶段拦下，交给上层判断去外链还是仓内跳转；
+/// - `top <凭据> <锚点 JSON>` —— 阅读位置；
+/// - `outline <凭据> <清单 JSON>` —— 章节清单（一篇一次）；
+/// - `focus <凭据> <处数>` —— 搜索命中已高亮并滚到（处数为 0 表示没找到），只记日志；
+/// - `anchor <目标>` —— 页内锚点已由页面自己滚好，只记日志。
+///
+/// 三条带凭据的消息必须校验凭据：换文档时旧页面还在收尾，它的位置 / 清单属于上一篇。
+sealed class MarkdownBridgeEvent {
+  const MarkdownBridgeEvent();
+
+  /// 解析一条回执。认不出来的一律归到 [Unknown]（上层当状态文字显示）。
+  static MarkdownBridgeEvent parse(String message) {
+    if (message.startsWith(JsProtocol.receiptPrefix)) {
+      final (String? token, String? rest) = _splitToken(
+        message,
+        JsProtocol.receiptPrefix,
+      );
+      if (token == null || rest == null) {
+        return Unknown(message);
+      }
+      return RenderReceipt(token: token, result: rest);
+    }
+    if (message.startsWith(_linkPrefix)) {
+      final String encoded = message.substring(_linkPrefix.length);
+      String href = encoded;
+      try {
+        href = Uri.decodeComponent(encoded);
+      } on ArgumentError {
+        // 转义异常时按原样交给上层，上层还会再判一次
+      }
+      return LinkTap(href);
+    }
+    if (message.startsWith(_topPrefix)) {
+      final (String? token, String? rest) = _splitToken(message, _topPrefix);
+      if (token == null || rest == null) {
+        return Unknown(message);
+      }
+      return PositionReport(token: token, anchor: PreviewAnchor.tryParse(rest));
+    }
+    if (message.startsWith(_outlinePrefix)) {
+      final (String? token, String? rest) = _splitToken(message, _outlinePrefix);
+      if (token == null || rest == null) {
+        return Unknown(message);
+      }
+      return OutlineReport(token: token, outline: MarkdownOutline.parse(rest));
+    }
+    if (message.startsWith(_focusPrefix)) {
+      final (String? token, String? rest) = _splitToken(message, _focusPrefix);
+      if (token == null || rest == null) {
+        return Unknown(message);
+      }
+      return FocusApplied(token: token, count: int.tryParse(rest.trim()));
+    }
+    if (message.startsWith(_anchorPrefix)) {
+      return AnchorScrolled(message.substring(_anchorPrefix.length));
+    }
+    return Unknown(message);
+  }
+
+  /// 把 `<前缀><凭据> <其余>` 拆成两截；格式不对（没有分隔空格）返回两个 null。
+  static (String?, String?) _splitToken(String message, String prefix) {
+    final String rest = message.substring(prefix.length);
+    final int sep = rest.indexOf(' ');
+    if (sep <= 0) {
+      return (null, null);
+    }
+    return (rest.substring(0, sep), rest.substring(sep + 1));
+  }
+
+  // `render ` 前缀与模板共享，定义在 [JsProtocol]（避免 Dart 两份、模板五份各写各的）
+  static const String _linkPrefix = 'link ';
+  static const String _topPrefix = 'top ';
+  static const String _outlinePrefix = 'outline ';
+  static const String _focusPrefix = 'focus ';
+  static const String _anchorPrefix = 'anchor ';
+}
+
+/// 渲染回执：[result] 是页面给的一句话（`ok（…）` / `empty` / `no-marked` / `异常: …`）。
+final class RenderReceipt extends MarkdownBridgeEvent {
+  const RenderReceipt({required this.token, required this.result});
+
+  final String token;
+  final String result;
+}
+
+/// 用户点了链接（[href] 已解码）。
+final class LinkTap extends MarkdownBridgeEvent {
+  const LinkTap(this.href);
+
+  final String href;
+}
+
+/// 阅读位置回执；[anchor] 为 null 表示 JSON 认不出来（丢弃即可，不要当顶部）。
+final class PositionReport extends MarkdownBridgeEvent {
+  const PositionReport({required this.token, required this.anchor});
+
+  final String token;
+  final PreviewAnchor? anchor;
+}
+
+/// 章节清单回执。
+final class OutlineReport extends MarkdownBridgeEvent {
+  const OutlineReport({required this.token, required this.outline});
+
+  final String token;
+  final MarkdownOutline outline;
+}
+
+/// 搜索命中已高亮并滚到；[count] 是全文亮起来的处数（null = 回执读不出数字）。
+///
+/// **只用于日志**：高亮是增强，没亮起来也不该让页面进入某种「失败态」——
+/// 读者手里的文档已经能读，别为一条定位再去打扰他。
+final class FocusApplied extends MarkdownBridgeEvent {
+  const FocusApplied({required this.token, required this.count});
+
+  final String token;
+  final int? count;
+}
+
+/// 页内锚点已滚动到位（只用于日志）。
+final class AnchorScrolled extends MarkdownBridgeEvent {
+  const AnchorScrolled(this.target);
+
+  final String target;
+}
+
+/// 认不出的回执：原样交给上层当状态文字（页面与 Dart 版本不同步时别炸）。
+final class Unknown extends MarkdownBridgeEvent {
+  const Unknown(this.raw);
+
+  final String raw;
+}

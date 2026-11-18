@@ -1,0 +1,75 @@
+/*
+ * 墨水屏（单色）语法高亮。加载在 hljs-light.css 之后。
+ *
+ * 彩色 token 在 16 级灰上会退化成同一档中灰（关键字与字符串几乎一样亮），
+ * 所以这里只留三档灰 + 粗细/斜体：注释最淡、关键字最重、字面量居中。
+ */
+.hljs {
+  color: #000000;
+  background: #ffffff;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #6e6e6e;
+  font-style: italic;
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-formula,
+.hljs-section,
+.hljs-name,
+.hljs-selector-tag,
+.hljs-subst,
+.hljs-literal,
+.hljs-type {
+  color: #000000;
+  font-weight: 600;
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-attribute,
+.hljs-meta .hljs-string,
+.hljs-built_in,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: #333333;
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-class,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-title {
+  color: #4d4d4d;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}
+
+/* diff 片段：不靠底色，靠下划线 / 反白 */
+.hljs-addition {
+  color: #000000;
+  background: transparent;
+  border-bottom: 1px solid #000000;
+}
+
+.hljs-deletion {
+  color: #ffffff;
+  background: #000000;
+}

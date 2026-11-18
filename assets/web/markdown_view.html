@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <!--
+    纵深防御（不能替代下面的清洗）：
+    - default-src 'none' 掐掉一切默认网络能力，其中 connect-src 被关掉 ⇒
+      即便作者脚本混进来，也发不出 fetch/XHR；
+    - img-src 放开是必须的：正文图片经回环资源服务取，内联退路则是 data:；
+    - script-src 'unsafe-inline' 是页面自身要求的（整个模板就是一段内联脚本），
+      所以这条**不能**用来挡内联事件属性 —— 真正挡事件属性的是 DOMPurify。
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; img-src * data:; style-src 'unsafe-inline'; font-src data:; script-src 'unsafe-inline'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>preview</title>
+  <!--
+    模板：Dart 侧把 marked、代码高亮、主题样式与本次内容内联进来，
+    然后**一次性** loadHtmlString（与 diff 视图同一套思路，见 diff_view.html 的说明：
+    OHOS 适配下 onPageFinished 不触发，不能依赖「加载后再注入」）。
+  -->
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      /* 底色由 Dart 侧按当前模式注入（不能用 WebView 的 setBackgroundColor：
+         它只对首次加载生效，切换底色后画面不重绘，见 design.md R57） */
+      background-color: /*__MD_BACKGROUND__*/;
+      /* 图表按这里取正文色：body 没有自己的 color 规则时浏览器默认是黑字 ——
+         深色档就变成深底黑字（2026-11-17 真机反馈）。边框变量也由宿主给：
+         墨屏按「纯黑边框」认成黑白图表，见 mdRenderMermaid 的 inkPalette。 */
+      color: /*__MD_FOREGROUND__*/;
+      --md-border-default: /*__MD_BORDER__*/;
+      -webkit-text-size-adjust: 100%;
+    }
+    /* GitHub 的 markdown 样式是按 .markdown-body 作用域的 */
+    .markdown-body {
+      box-sizing: border-box;
+      min-width: 200px;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px;
+      font-size: 15px;
+    }
+    .markdown-body img { max-width: 100%; }
+    /* 表格在窄屏可横向滚动，别把布局撑破 */
+    .markdown-body table { display: block; overflow-x: auto; max-width: 100%; }
+    /* 块级公式：宽公式（矩阵、多行对齐）在窄屏会撑破布局，给一条横向滚动。
+       行内公式由 KaTeX 自己排字号（.katex 跟正文 em 走），这里不干预。 */
+    .hyperlens-math-block { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+    .hyperlens-math-block .katex-display { margin: 0; }
+    /* 图表：SVG 宽度跟容器（useMaxWidth）；比容器还宽时给横向滚动，不撑破正文。
+       渲染失败的那块保留原文并标红边 —— 只坏一块，不影响其它图与正文。 */
+    .hyperlens-mermaid-rendered { overflow-x: auto; overflow-y: hidden; padding: 6px 0; }
+    .hyperlens-mermaid-rendered svg { max-width: 100%; height: auto; }
+    /* 思维导图的连线：Mermaid 把「节点填充」和「连线」绑在同一个 `cScaleN` 上，
+       base 主题深色档反相出来的是黑线 —— 纯黑画布上整张图只剩文字，连线全丢
+       （2026-11-17 真机读回 .section-edge-0 的 stroke = rgb(0,0,0)）。
+       连线改吃宿主的边框色：浅色 #d0d7de、深色 #d0d7de、墨屏 #000000 —— 三档都
+       与底色有对比；`!important` 压住 Mermaid 注入在 SVG 里的 .section-edge-N 规则。 */
+    .hyperlens-mermaid-rendered svg [class*="section-edge-"] {
+      stroke: var(--md-border-default, #d0d7de) !important;
+    }
+    /* 节点也描一遍边：纯黑画布上深灰填充虽然不再是黑洞，1px 边才把形状勾清楚；
+       墨屏那档则是白纸上的 1px 黑边（与编辑器里其它组件的边界口径一致）。 */
+    .hyperlens-mermaid-rendered svg .node-bkg {
+      stroke: var(--md-border-default, #d0d7de) !important;
+      stroke-width: 1px !important;
+    }
+    .hyperlens-mermaid-error { border-left: 3px solid #cf222e; padding-left: 8px; }
+    .empty { padding: 16px; font-family: sans-serif; opacity: .7; }
+    /* 行号标记（渲染时插在每个顶级块前面，用来算「这块从源码第几行开始」）：
+       必须完全不占位 —— 它在正文里只存在几毫秒，摘掉之后位置表还留着。 */
+    .hyperlens-md-line {
+      display: block;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+    }
+    .error { padding: 16px; font-family: monospace; color: #c62828; white-space: pre-wrap; }
+    /*__MD_THEME_CSS__*/
+    /*__HLJS_THEME_CSS__*/
+    /* KaTeX：字体已 base64 内联进这份 CSS（`scripts/build_katex_css.py`），
+       因为 CSP 是 `font-src data:`。文档里没有公式时 Dart 侧按空串替换。 */
+    /*__KATEX_CSS__*/
+    /* 整页统一成 Dart 侧注入的底色：上面的主题 CSS 会给 .markdown-body 画它自己的
+       底色（GitHub 的 #0d1117 / #fff），与 App 主题色略有差异；且文档块之外
+       （左右留白、内容下方）本来露出的是 WebView 底色 —— 于是切浅色底时会看到
+       「文档块变浅、其余仍深」。统一抹成一个色，整页才是一块。 */
+    html, body, .markdown-body { background-color: /*__MD_BACKGROUND__*/; }
+    /* 链接：**下划线是必须的**，不能只靠颜色区分 ——
+       GitHub 的主题样式里是 `.markdown-body a { text-decoration: none }`（有意不给
+       下划线，靠颜色），而触屏没有 hover；墨水屏又把那层蓝灰化成与正文几乎同色
+       ⇒ 链接彻底看不出来（用户报的正是这个）。
+       这里**只补下划线、不动颜色**：彩色屏照旧蓝色链接，墨水屏靠形状也能一眼认出。
+       放在主题 CSS **之后**：`a[href]` 让特异性（0,2,1）高于主题的 `.markdown-body a`
+       （0,1,1），再加一条兜底 —— 后者胜。见 design.md R108。 */
+    .markdown-body a[href] {
+      text-decoration: underline;
+      /* 汉字的下划线贴太近会和笔画糊在一起，拉开一点 */
+      text-underline-offset: 2px;
+    }
+    /* 搜索命中的高亮（`mark[data-hyperlens-focus]`，见 preview_focus.dart）。
+       为什么要覆盖主题自带的三档 `mark`：它们的底色都来自各自的 attention 变量 ——
+       深色档是暗褐、墨水屏档直接给了**白底**（只剩一条下划线），真机上「点进去
+       却看不出亮在哪」。统一成黄底黑字：深浅两档都够醒目，墨主题由 md-ink.css
+       再压成灰底（那条追加在浅色表之后，同特异性下后者胜）。
+       特异性 (0,2,1) 高于主题的 `.markdown-body mark`（0,1,1），不必加 !important。 */
+    .markdown-body mark[data-hyperlens-focus] {
+      background-color: #ffe58f;
+      color: #000000;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="content" class="markdown-body"></div>
+  <script>
+    // 通道名 HyperLens 与回执前缀 "render " 必须与 lib/src/protocol/js_protocol.dart 一致。
+    function post(msg) {
+      try {
+        if (window.HyperLens && window.HyperLens.postMessage) {
+          window.HyperLens.postMessage(msg);
+        }
+      } catch (e) { /* 非 WebView 环境下忽略 */ }
+    }
+  </script>
+  <script>
+    /* 阅读位置锚点：记「视口顶端是第几块 + 块内滚过去多少」，返回时按同一块放回去。
+       为什么不用 scrollY：阅读区有 小/中/大 字号偏好，重排后像素位置对不上。
+       与 Dart 侧 PreviewAnchor（lib/src/model/preview_anchor.dart）一一对应。 */
+    /* 注意区分「读者动了手」与「页面自己滚了」：
+       换文档时 ArkWeb 会把上一篇的滚动量带过来并按新文档高度**钳制**（实测 A 在
+       1688、B 更短 → 停在 693 = B 的最大滚动值），这一声 scroll 事件**早于**本脚本
+       —— 若拿 scroll 当「读者动了手」，还原就会当场放弃。所以只认真正的手势：
+       touch / wheel / 按键。 */
+    var mdUserTouched = false;  // 读者真的动过手：还原立刻收手，绝不跟他抢
+    var mdHolding = false;      // 正在「按住」还原位置：这期间的 scroll 都是自己造成的
+
+    /* 标题 id（GitHub 风格 slug）—— 「章节」目录与文档内链都靠它。
+       marked v14 已不再生成标题 id（headerIds 选项早被移除），于是文档里
+       `[x](#小节)` 这类内链点了不动（本页只上报一句 anchor，画面纹丝不动）。
+       口径与 GitHub 对齐：小写、去标点（保留中日韩 / 拉丁字母 / 数字 / - _）、
+       空白转 -、重名加序号、首尾多余的 - 去掉（「💡 提示」这种标题去掉 emoji 后
+       会剩一个前导 -，手写的 `#提示` 就对不上了）。
+       注意用「排除法」而不是 \p{L} + u 标志：老引擎上正则解析失败会让**整个
+       <script> 块**失效，连位置还原一起废掉 —— 为一条 slug 规则不值当。 */
+    function mdSlug(text, seen) {
+      var s = String(text || '').trim().toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g, '')
+        .replace(/^-+|-+$/g, '');
+      if (!s) { return ''; }        // 纯符号标题：不生成 id，目录里照样列出来
+      var n = seen[s];
+      if (n === undefined) { seen[s] = 1; return s; }
+      seen[s] = n + 1;
+      return s + '-' + n;
+    }
+
+    /* 块 ↔ 源码行：渲染时在每个顶级块前面插一枚行号标记（见渲染段），扫完就摘掉，
+       只留下「第 i 块从第几行开始」这张表。
+       行号是预览与**源码视图**共用的坐标：两边各自只记自己那套刻度（块号+块内
+       偏移 / 像素偏移），互相听不懂；读者在预览里读到某段切到源码，就靠这张表
+       换算到同一处（反过来也一样，见 Dart 侧 PreviewAnchor.line / CodeAnchor.line）。 */
+    var mdBlockLines = [];
+
+    /* 读标记 → 位置表，然后**把标记全部摘掉**：它们不属于正文，留着会让「第几块」
+       整体挪位（目录跳转、位置还原都按子块序号）。
+       行号写在 class 里而不是 data-*：清洗白名单只保证留下 class。 */
+    function mdReadBlockLines(host) {
+      var kids = host.children;
+      var lines = [];
+      var pending = 1;
+      for (var i = 0; i < kids.length; i++) {
+        var el = kids[i];
+        var cls = el.className || '';
+        if (cls.indexOf('hyperlens-md-line') >= 0) {
+          var hit = /hyperlens-l-(\d+)/.exec(cls);
+          if (hit) { pending = parseInt(hit[1], 10); }
+          continue;
+        }
+        lines.push(pending);
+      }
+      var marks = host.querySelectorAll('.hyperlens-md-line');
+      for (var j = 0; j < marks.length; j++) {
+        if (marks[j].parentNode) { marks[j].parentNode.removeChild(marks[j]); }
+      }
+      return lines;
+    }
+
+    function mdBlockTop(el) {
+      return el.getBoundingClientRect().top + (window.scrollY || 0);
+    }
+
+    function mdLineOfBlock(i) {
+      if (!mdBlockLines || i < 0 || i >= mdBlockLines.length) { return 0; }
+      return mdBlockLines[i] || 0;
+    }
+
+    /* 像素位置 → 源码行：找视口顶端那块，再按**块内行数等比**插值。
+       只报块号的话，一个长段落 / 长代码块能横跨好几屏，切到源码就落到块首。 */
+    function mdLineAt(y) {
+      var host = document.getElementById('content');
+      var kids = host ? host.children : null;
+      if (!kids || !kids.length) { return 0; }
+      var i = -1;
+      for (var k = 0; k < kids.length; k++) {
+        if (mdBlockTop(kids[k]) > y + 1) { break; }
+        i = k;
+      }
+      if (i < 0) { return mdLineOfBlock(0); }  // 还没到第一块（页首留白）
+      var start = mdLineOfBlock(i);
+      if (!start) { return 0; }
+      var next = mdLineOfBlock(i + 1);
+      var top = mdBlockTop(kids[i]);
+      if (!next || next <= start || i + 1 >= kids.length) {
+        // 最后一块（或这张表缺下一块）：只能给块首行，好过不给
+        return start;
+      }
+      var span = mdBlockTop(kids[i + 1]) - top;
+      if (span <= 0) { return start; }
+      var frac = (y - top) / span;
+      if (frac < 0) { frac = 0; }
+      if (frac > 1) { frac = 1; }
+      return Math.round(start + frac * (next - start));
+    }
+
+    /* 源码行 → 像素位置（mdLineAt 的反向），落位用。找不到返回 null。 */
+    function mdYForLine(line) {
+      var host = document.getElementById('content');
+      var kids = host ? host.children : null;
+      if (!kids || !kids.length || !(line > 0)) { return null; }
+      var pick = -1;
+      for (var i = 0; i < kids.length; i++) {
+        var l = mdLineOfBlock(i);
+        if (!l) { continue; }
+        if (l > line) { break; }
+        pick = i;
+      }
+      if (pick < 0) { return null; }
+      var top = mdBlockTop(kids[pick]);
+      var start = mdLineOfBlock(pick);
+      var next = mdLineOfBlock(pick + 1);
+      if (!next || next <= start || pick + 1 >= kids.length) { return top; }
+      var nextTop = mdBlockTop(kids[pick + 1]);
+      var frac = (line - start) / (next - start);
+      if (frac < 0) { frac = 0; }
+      if (frac > 1) { frac = 1; }
+      return top + frac * (nextTop - top);
+    }
+
+    function mdTopAnchor() {
+      var y = window.scrollY || document.documentElement.scrollTop || 0;
+      var host = document.getElementById('content');
+      var block = -1;
+      var offset = 0;
+      if (host) {
+        var kids = host.children;
+        for (var i = 0; i < kids.length; i++) {
+          var top = mdBlockTop(kids[i]);
+          if (top > y + 1) { break; }  // 已经在视口下方：后面更不是顶端那块
+          block = i;
+          offset = y - top;
+        }
+      }
+      return {
+        block: block,
+        offset: Math.round(offset),
+        scrollY: Math.round(y),
+        line: mdLineAt(y),
+        /* 视口底部那一段的源码行：章节高亮要判「下一节的标题上屏没有」，
+           只看顶端那一行不够（见 Dart 侧 MarkdownOutline.currentForScreen）。 */
+        bottomLine: mdLineAt(y + (window.innerHeight || 0))
+      };
+    }
+
+    /* 落一次位：有行号就按行号（跨得过「块」这一层，长段落里也对得上），
+       没有才退回「块 + 块内偏移」，再不行用当时的像素。 */
+    function mdRestore(a) {
+      if (!a) { return; }
+      var y = null;
+      if (a.line > 0) { y = mdYForLine(a.line); }
+      var host = document.getElementById('content');
+      var kids = host ? host.children : null;
+      if (y === null && kids && a.block >= 0 && a.block < kids.length) {
+        y = mdBlockTop(kids[a.block]) + (a.offset || 0);
+      }
+      if (y === null && typeof a.scrollY === 'number') {
+        y = a.scrollY;
+      }
+      if (y === null) { return; }
+      window.scrollTo(0, Math.max(0, y));
+    }
+
+    /* 跳到第 n 块（「章节」目录点了某一条）：与位置还原**共用同一套「块」坐标**，
+       于是跳过去之后按返回还能落回这一节（顺手补报一次位置 —— 读者可能马上就走）。 */
+    function mdScrollToBlock(n) {
+      var host = document.getElementById('content');
+      var kids = host ? host.children : null;
+      if (!kids || n < 0 || n >= kids.length) { return false; }
+      /* 目录跳转是读者明确要去的地方：立刻放弃「按住还原」，和「手指一碰就放手」同一条
+         规矩（见 mdUserTouched）。否则还原每 100ms 还在往旧锚点拽 —— 无头实测：跳到目标
+         top=0，400ms 后又被拉回 -252px，读者看到的就是「点了目录却停在半路」。 */
+      mdUserTouched = true;
+      mdHolding = false;
+      var y = kids[n].getBoundingClientRect().top + (window.scrollY || 0);
+      window.scrollTo(0, Math.max(0, y));
+      if (window.__mdReportAnchor) { window.__mdReportAnchor(); }
+      return true;
+    }
+
+    /* 还原要**按住**一小会儿：只落一次位压不住上面那次带过来的滚动（它可能在
+       脚本跑之前、也可能在其后），所以在 1.5s 内反复落位。
+       读者一动就立刻放手（见 mdUserTouched），绝不跟他抢。 */
+    function mdHold(a) {
+      if (!a) { return; }
+      var until = Date.now() + 1500;
+      mdHolding = true;
+      (function stick() {
+        if (mdUserTouched) { mdHolding = false; return; }
+        mdRestore(a);
+        if (Date.now() < until) {
+          setTimeout(stick, 100);
+        } else {
+          mdHolding = false;
+        }
+      })();
+    }
+
+    /* 位置上报：滚动停下来才报（滚动中每帧报会把通道刷爆），
+       手一松再补一枪 —— 读者常常「滚到目标就立刻点返回或点链接」。
+       回执带上凭据，Dart 侧据此丢掉不是当前这一页的迟到消息。 */
+    function mdWatchAnchor(token) {
+      var timer = null;
+      function report() {
+        post('top ' + token + ' ' + JSON.stringify(mdTopAnchor()));
+      }
+      // 点链接前同步补一枪（见下面的点击拦截）：这一枪必须是真的当前位置，
+      // 不受「按住」影响 —— 它就是读者离开时该被记住的位置
+      window.__mdReportAnchor = report;
+      function schedule(delay) {
+        if (mdHolding) { return; }  // 正在按住还原：这声 scroll 是自己造成的
+        if (timer !== null) { clearTimeout(timer); }
+        timer = setTimeout(function () { timer = null; report(); }, delay);
+      }
+      // scroll **不算**「读者动了手」（见 mdUserTouched 的注释）
+      window.addEventListener('scroll', function () { schedule(250); }, { passive: true });
+      window.addEventListener('touchstart', function () {
+        mdUserTouched = true;  // 手指一碰：还原立刻收手
+      }, { passive: true });
+      window.addEventListener('touchend', function () {
+        mdUserTouched = true;
+        schedule(30);
+      }, { passive: true });
+      window.addEventListener('wheel', function () {
+        mdUserTouched = true;
+      }, { passive: true });
+    }
+  </script>
+  <script>
+    /* 链接点击**必须拦下来**：页面是 loadHtmlString 加载的（没有 base url），
+       任何相对链接都会让 WebView 去导航到一个解析不出来的地址 —— 用户看到的
+       现象是「点一下整页变空白」（CPF-Flutter 文档索引即如此）。
+       在捕获阶段拦下所有 <a>，阻止默认导航，把 href 交回 Dart：
+         - 仓内相对路径 → Dart 打开对应文件
+         - http/https    → Dart 交给系统浏览器
+         - #锚点         → 就地滚动（本页自己能处理，不打扰 Dart） */
+    document.addEventListener('click', function (e) {
+      var node = e.target;
+      var a = (node && node.closest) ? node.closest('a') : null;
+      if (!a) { return; }
+      var href = a.getAttribute('href') || '';
+      if (!href) { return; }
+      e.preventDefault();
+      e.stopPropagation();
+      if (href.charAt(0) === '#') {
+        /* 标题的 id 是本页按 slug 生成的，而链接里的锚点常被写成
+           `#%E9%85%8D%E7%BD%AE`（转义）或原样中文 —— 两种都试一次，别只试一种 */
+        var raw = href.slice(1);
+        var id = raw;
+        try { id = decodeURIComponent(raw); } catch (e) { /* 非法转义：按原样找 */ }
+        var el = document.getElementById(id) || document.getElementById(raw) ||
+                 document.getElementsByName(id)[0] || document.getElementsByName(raw)[0];
+        if (el && el.scrollIntoView) { el.scrollIntoView(true); }
+        post('anchor ' + id);
+        return;
+      }
+      // 先报当前位置、再报跳转：Dart 侧处理 link 时要把「离开的位置」压进浏览栈，
+      // 顺序反了就会把这一篇的位置记到下一篇头上（同一次 JS 执行里同步上报）
+      if (window.__mdReportAnchor) { window.__mdReportAnchor(); }
+      // encodeURI：既保留已转义的 %20，也把中文/空格统一成 UTF-8 转义，Dart 侧解一次
+      post('link ' + encodeURI(href));
+    }, true);
+  </script>
+  <script>
+    /*__DOMPURIFY_JS__*/
+  </script>
+  <script>
+    /*__MARKED_JS__*/
+  </script>
+  <script>
+    /*__HLJS_JS__*/
+  </script>
+  <script>
+    /*__HLJS_DART_JS__*/
+  </script>
+  <!--
+    KaTeX 与它的 mhchem 扩展（化学式 \ce{} / \pu{}）。
+    **顺序不能反**：mhchem 是 UMD，运行时读全局 `katex`；两个文件的版本必须同号。
+    文档里没有公式时 Dart 侧把这两段换成空串（门控见 markdown_extras.dart），
+    所以下面的脚本都带 `window.katex` 判据 —— 缺了它页面照常渲染，只是没有公式。
+  -->
+  <script>
+    /*__KATEX_JS__*/
+  </script>
+  <script>
+    /*__MHCHEM_JS__*/
+  </script>
+  <!--
+    Mermaid（图表）：3.57 MB 的 IIFE 单文件，只有文档里出现 ```mermaid 围栏时 Dart 侧
+    才把它换进来，否则这里是空标签。**锁 11.x** —— 12.x 的包体是 5.54 MB。
+  -->
+  <script>
+    /*__MERMAID_JS__*/
+  </script>
+  <script>
+    /* 数学公式：块级在 token 层拦、行内在 DOM 层扫。
+       为什么**必须**分成两处：
+       - 块级若等到落 DOM 再找，页面开着 breaks，段落里的换行已变成 <br>，
+         「$$ / 换行 / 公式 / 换行 / $$」被拆成三个文本节点，永远配不上；
+       - 行内若用 marked 的 inline 扩展，扩展的 start() 会「跳到最近的 $」，
+         把两者之间的行内代码整段当文本吞掉（`$x$` 写在反引号里就会破）。
+       另一条边界：块级不用 KaTeX 自带的 auto-render，因为它没有「首尾不贴空白」
+       的判据 —— 中文里写「$5 到 $10」会被当成一条公式。 */
+    function mdEscHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    if (window.marked && window.katex) {
+      window.marked.use({
+        extensions: [{
+          name: 'hyperLensMathBlock',
+          level: 'block',
+          // 只在行首匹配：raw 必须带上尾部换行，否则「块 ↔ 源码行」那张表会往前串
+          //（mdReadBlockLines 按 token.raw 的行跨度累加）。
+          tokenizer: function (src) {
+            var m = /^ {0,3}\$\$([\s\S]+?)\$\$[ \t]*(?:\n+|$)/.exec(src);
+            if (m) { return { type: 'hyperLensMathBlock', raw: m[0], text: m[1] }; }
+            var n = /^ {0,3}\\\[([\s\S]+?)\\\][ \t]*(?:\n+|$)/.exec(src);
+            if (n) { return { type: 'hyperLensMathBlock', raw: n[0], text: n[1] }; }
+            return undefined;
+          },
+          // 只输出「带 class 的文本」：清洗白名单里 div / class 都在，
+          // 真正的排版由下面的 katex.render 用 DOM API 完成（不经过 innerHTML）。
+          renderer: function (token) {
+            return '<div class="hyperlens-math-block">' + mdEscHtml(token.text) + '</div>';
+          },
+        }],
+      });
+    }
+
+    /* ```mermaid 围栏 → 占位 <pre class="hyperlens-mermaid">原始源码</pre>。
+       必须在 token 层拦：落 DOM 之后这段已经是 hljs 拆碎的一堆 span，想再取回原始
+       源码就得反解高亮标签。`raw` 带尾部换行，「块 ↔ 源码行」的表才不漂。
+       与 KaTeX 各自独立判据：只含图表的文档不加载 KaTeX，反之亦然。 */
+    if (window.marked && window.mermaid) {
+      window.marked.use({
+        extensions: [{
+          name: 'hyperLensMermaid',
+          level: 'block',
+          tokenizer: function (src) {
+            var m = /^ {0,3}(`{3,}|~{3,})[ \t]*mermaid[ \t]*\n([\s\S]*?)\n? {0,3}\1[ \t]*(?:\n+|$)/.exec(src);
+            if (!m) { return undefined; }
+            return { type: 'hyperLensMermaid', raw: m[0], text: m[2] };
+          },
+          // 只输出带 class 的文本：白名单里 pre / class 都在，SVG 由下面的
+          // mermaid.render 生成（库产物，不经过作者的 HTML）
+          renderer: function (token) {
+            return '<pre class="hyperlens-mermaid">' + mdEscHtml(token.text) + '</pre>';
+          },
+        }],
+      });
+    }
+
+    /* 这些标签里的 $ 不算公式：代码块、行内代码、以及已经渲染出来的 KaTeX 节点。 */
+    var MD_MATH_SKIP_TAGS = ['PRE', 'CODE', 'SCRIPT', 'STYLE', 'TEXTAREA', 'KBD'];
+
+    function mdInMathSkip(node, host) {
+      var el = node.parentNode;
+      while (el && el !== host) {
+        if (MD_MATH_SKIP_TAGS.indexOf(el.nodeName) >= 0) { return true; }
+        if (el.classList &&
+            (el.classList.contains('katex') || el.classList.contains('hyperlens-math-block'))) {
+          return true;
+        }
+        el = el.parentNode;
+      }
+      return false;
+    }
+
+    /* 把一个文本节点里的行内公式就地换掉，返回渲染成功的条数。
+       判据（与 docs/plan/markdown-math-mermaid-plan.md §3.3 同一口径）：
+       不跨行、内部非空、首尾不贴空白、`\$` 是转义不算定界符。
+       宁可少认：认错的表现是「本该是公式的地方露出一段红字原文」。 */
+    function mdRenderInlineMath(node) {
+      var text = node.nodeValue;
+      var hits = [];
+      var pos = 0;
+      while (pos < text.length) {
+        var ch = text.charAt(pos);
+        if (ch === '\\' && text.charAt(pos + 1) === '$') { pos += 2; continue; }
+        if (ch === '$') {
+          var j = pos + 1;
+          while (j < text.length) {
+            var c = text.charAt(j);
+            if (c === '\\') { j += 2; continue; }
+            if (c === '\n' || c === '$') { break; }
+            j++;
+          }
+          if (j < text.length && text.charAt(j) === '$' && j > pos + 1) {
+            var inner = text.substring(pos + 1, j);
+            if (!/^\s|\s$/.test(inner)) {
+              hits.push({ from: pos, to: j + 1, tex: inner });
+              pos = j + 1;
+              continue;
+            }
+          }
+        }
+        pos++;
+      }
+      if (!hits.length) { return 0; }
+      var frag = document.createDocumentFragment();
+      var last = 0;
+      var count = 0;
+      for (var i = 0; i < hits.length; i++) {
+        if (hits[i].from > last) {
+          frag.appendChild(document.createTextNode(text.substring(last, hits[i].from)));
+        }
+        var span = document.createElement('span');
+        span.className = 'hyperlens-math';
+        try {
+          window.katex.render(hits[i].tex, span, {
+            displayMode: false, throwOnError: false, trust: false, strict: false,
+          });
+          frag.appendChild(span);
+          count++;
+        } catch (e) {
+          // 坏公式保持原文：宁可看见 `$\\frac{1}$`，也别把整段吞掉
+          frag.appendChild(document.createTextNode(text.substring(hits[i].from, hits[i].to)));
+        }
+        last = hits[i].to;
+      }
+      if (last < text.length) {
+        frag.appendChild(document.createTextNode(text.substring(last)));
+      }
+      node.parentNode.replaceChild(frag, node);
+      return count;
+    }
+
+    /* 渲染整页公式，返回条数。**必须在位置还原 / 命中定位之前**调用：
+       KaTeX 会改变行高，先落位再换行高，读者回来时停的位置就偏了。 */
+    function mdRenderMath(host) {
+      if (!window.katex) { return 0; }
+      var count = 0;
+      var blocks = host.querySelectorAll('.hyperlens-math-block');
+      for (var b = 0; b < blocks.length; b++) {
+        var box = blocks[b];
+        try {
+          window.katex.render(box.textContent || '', box, {
+            displayMode: true, throwOnError: false, trust: false, strict: false,
+          });
+          count++;
+        } catch (e) { /* 保持原文（块里本来就是清洗过的纯文本） */ }
+      }
+      var walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT, null);
+      var targets = [];
+      var node;
+      while ((node = walker.nextNode())) {
+        var t = node.nodeValue || '';
+        if (t.indexOf('$') < 0) { continue; }
+        if (mdInMathSkip(node, host)) { continue; }
+        targets.push(node);
+      }
+      for (var i = 0; i < targets.length; i++) {
+        count += mdRenderInlineMath(targets[i]);
+      }
+      return count;
+    }
+
+    /* 把载荷里「转义美元符」的占位字符换回字面 `$`。
+       顺序必须在公式渲染**之后**：反过来的话它们先变回 `$`，又会被当成定界符。
+       这一步与有没有 KaTeX 无关（文档里可能只写了 `\$` 而没有任何公式），
+       所以不能塞进 mdRenderMath 的 `window.katex` 判据里，否则那些文档会露出占位字符。 */
+    function mdRestoreEscapedDollars(host) {
+      var SENTINEL = '\uE000';
+      var walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT, null);
+      var hits = [];
+      var node;
+      while ((node = walker.nextNode())) {
+        if ((node.nodeValue || '').indexOf(SENTINEL) >= 0) { hits.push(node); }
+      }
+      for (var i = 0; i < hits.length; i++) {
+        hits[i].nodeValue = hits[i].nodeValue.split(SENTINEL).join('$');
+      }
+      return hits.length;
+    }
+
+    /* 图表：把 pre.hyperlens-mermaid 逐个渲染成 SVG。
+       - 用 `render()` 而不是 `run()`：能逐块 try/catch，一块失败只影响那一块，
+         并把原文留在原地；`run()` 会直接改 DOM，出错时连源码都找不回来。
+       - `securityLevel: 'strict'`：图内不执行脚本、不响应点击；产物再走一次
+         DOMPurify 的 SVG profile 兜底 —— 不把「库一定安全」当成假设。
+       - 主题从当前页面的计算样式取（正文色 / 底色 / 边框色）：浅色、深色、墨水屏
+         三档共用一套代码，墨屏自然是黑白。
+       - **必须在位置还原 / 命中定位之前**调用：SVG 撑开行高，顺序反了就落错位置。 */
+    /* 图内公式（`$$…$$` 写在节点标签里）走的是另一条路：Mermaid 自己用内置的
+       KaTeX 把公式渲染成 **MathML**，塞进 `<foreignObject>` 里的 `<div>`。
+       （作者写的 `$…$` / `\[…\]` / `\(…\)` 都会先被 `mdUpgradeMermaidMath` 改成
+       这个写法 —— Mermaid 只认双美元。）
+
+       这段内容过不了 SVG profile 的清洗 —— 在 SVG 上下文里，foreignObject 内的
+       HTML 元素（div/span/math…）会被 DOMPurify 整个移除（连 ADD_TAGS 都救不回来，
+       实测 3.2.6：同样的内容单独当 HTML 片段清洗则完整保留）。所以分两步：
+       先把每段 foreignObject 的内容按 HTML 片段洗一遍存起来，再洗 SVG 骨架，
+       最后按顺序塞回（`mdPurifyMermaid`）。**不是**给 SVG 白名单开口子：
+       两段内容都还是 DOMPurify 洗过的，只是各自在正确的命名空间里洗。 */
+    function mdPurifyMermaidSvg(svg) {
+      var holder = document.createElement('div');
+      holder.innerHTML = svg;
+      var fos = holder.querySelectorAll('foreignObject');
+      var kept = [];
+      var i;
+      for (i = 0; i < fos.length; i++) {
+        kept.push(window.DOMPurify.sanitize(fos[i].innerHTML, {
+          // 只要 MathML（公式）与 label 外壳这几个 HTML 标签 —— 不复用 `html`
+          // profile 的全表：图内 label 用不到 a/img/form，少一项就少一条路。
+          USE_PROFILES: { mathMl: true },
+          ADD_TAGS: ['div', 'span', 'p', 'br', 'code', 'b', 'i', 'strong', 'em',
+            'sub', 'sup', 'del', 's', 'u', 'mark', 'ul', 'ol', 'li', 'kbd'],
+          ADD_ATTR: ['class', 'style', 'xmlns', 'display', 'aria-hidden'],
+        }));
+      }
+      var clean = window.DOMPurify.sanitize(holder.innerHTML, {
+        USE_PROFILES: { svg: true, svgFilters: true },
+        ADD_TAGS: ['style', 'foreignObject'],
+        ADD_ATTR: ['dominant-baseline', 'text-anchor', 'transform-origin'],
+      });
+      holder.innerHTML = clean;
+      var fos2 = holder.querySelectorAll('foreignObject');
+      if (fos2.length === kept.length) {
+        for (i = 0; i < fos2.length; i++) {
+          if (kept[i]) { fos2[i].innerHTML = kept[i]; }
+        }
+      }
+      return holder.innerHTML;
+    }
+
+    /* 公式能不能解析，只信页面上的 KaTeX（`throwOnError` + `strict:'error'`）。
+       少了这一层，`A["价格 $5 到 $10"]` 会配成 `$5 到 $` 并被当成公式 —— 而
+       Mermaid 那边不报错，只是把「5 到」排成一坨乱码，静默错给你看。
+       校验不过就原样留着：宁可图里是 LaTeX 源码，也不要排错的公式。 */
+    function mdKatexOk(tex) {
+      try {
+        window.katex.renderToString(tex, {
+          throwOnError: true, strict: 'error', displayMode: false,
+        });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    /* 把图里的公式定界符统一改写成 Mermaid 认的双美元。
+       Mermaid 的判据写死在它自己的 KaTeX 调用里（`/\$\$(.*?)\$\$/g`），别的写法一律
+       当纯文本 —— 包括作者在正文里习惯写的 `$x$`，以及正文那套块级/行内定界符
+       `\[…\]` / `\(…\)`（图里原样留着就是一串反斜杠）。
+
+       三种写法**一次扫完**：先替换再回头扫的话，刚生成的 `$$x$$` 会被当成两个单美元
+       套成 `$$$x$$$`。
+
+       `window.katex` 一定在：图表文档加载的是 hyperlens-mermaid 自建包，它在入口里
+       把 bundle 内那份（带 mhchem 的）KaTeX 挂上来了；正文有公式时则是独立那份。
+       万一哪天换成没有这个副作用的包，这里会**静默退化**成「图里只有 `$$` 出公式」。
+
+       四个边界：
+       - 已经是 `$$…$$` 的原样交回去（第一个分支），不套第二层；
+       - 公式体里出现引号就当没配上（`A["$a"] --> B["b$"]` 跨了 label 边界）；
+         单美元那条另外还要拦方括号 —— 图里的 `[1]` 更可能是标签文本；
+       - 单行、≤200 字符，与 Mermaid 的判据对齐：`$$` 若跨行它同样不渲染，
+         那还不如把作者写的 `\[` 原样留着；
+       - `\[5\]` 这种「转义方括号字面量」会被当成公式（KaTeX 解析 `5` 当然成功）：
+         图里要写字面方括号，别加反斜杠。 */
+    function mdUpgradeMermaidMath(src) {
+      if (!window.katex) { return src; }
+      if (src.indexOf('$') < 0 && src.indexOf('\\[') < 0 && src.indexOf('\\(') < 0) {
+        return src;
+      }
+      return src.replace(
+        /\$\$[\s\S]*?\$\$|\\\[([^"\n]{1,200}?)\\\]|\\\(([^"\n]{1,200}?)\\\)|\$([^$\n]{1,200}?)\$/g,
+        function (whole, bracket, paren, dollar) {
+          // 原生 `$$…$$`：Mermaid 直接认，别再包一层
+          if (bracket === undefined && paren === undefined && dollar === undefined) {
+            return whole;
+          }
+          var body = bracket !== undefined ? bracket
+            : (paren !== undefined ? paren : dollar);
+          if (/^\s|\s$/.test(body)) { return whole; }
+          // 方括号只对单美元那条设限：花括号不能拦 —— `\frac{a}{b}`、`\ce{H2O}`、
+          // `x^{2}` 都靠它（`\[…\]` 的公式体要能容纳 `\begin{bmatrix}` 这类写法）
+          if (dollar !== undefined && /["'\[\]]/.test(body)) { return whole; }
+          if (!mdKatexOk(body)) { return whole; }
+          return '$$' + body + '$$';
+        });
+    }
+
+    async function mdRenderMermaid(host, isDark) {
+      if (!window.mermaid) { return 0; }
+      var nodes = host.querySelectorAll('pre.hyperlens-mermaid');
+      if (!nodes.length) { return 0; }
+      // 从 `.markdown-body` 取，不取 `document.body`：正文色由 md-*.css 挂在
+      // `#content` 上（body 那条是宿主注入的兜底），以正文为准。
+      var cs = window.getComputedStyle(host);
+      var fg = cs.color || '#1f2328';
+      var bg = cs.backgroundColor || '#ffffff';
+      if (bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') { bg = '#ffffff'; }
+      var border = cs.getPropertyValue('--md-border-default') || '#d0d7de';
+      // 调色板：`primaryColor` 同时被「节点填充」和「饼图扇区」用，三档配色都从
+      // 这三个基色派生，饼图才不会因为同色而糊成一整块白。墨屏档按「边框是纯黑」
+      // 认出来（light 的边框是浅灰），一律白底黑描边。
+      var borderFlat = String(border).replace(/\s/g, '').toLowerCase();
+      var inkPalette = borderFlat === '#000' || borderFlat === '#000000';
+      var palette;
+      if (inkPalette) {
+        palette = {
+          primary: '#ffffff', secondary: '#ffffff', tertiary: '#ffffff',
+          pies: ['#ffffff', '#f2f2f2', '#e6e6e6', '#d9d9d9', '#cccccc', '#bfbfbf'],
+        };
+      } else if (isDark === true) {
+        palette = {
+          primary: '#21262d', secondary: '#30363d', tertiary: '#3d444d',
+          pies: ['#3d444d', '#4d5863', '#5d6874', '#6e7a86', '#8b949e', '#a9b1ba'],
+        };
+      } else {
+        palette = {
+          primary: '#f6f8fa', secondary: '#eaeef2', tertiary: '#dfe4ea',
+          pies: ['#d0d7de', '#afb8c1', '#8c959f', '#6e7781', '#57606a', '#424a53'],
+        };
+      }
+      var themeVars = {
+        darkMode: isDark === true && !inkPalette,
+        background: bg,
+        primaryColor: palette.primary,
+        primaryTextColor: fg,
+        primaryBorderColor: border,
+        secondaryColor: palette.secondary,
+        tertiaryColor: palette.tertiary,
+        lineColor: border,
+        textColor: fg,
+        fontFamily: cs.fontFamily,
+        fontSize: '15px',
+        // 甘特图的「今天」竖线在 11.x 由主题变量控制（`gantt.todayMarker` 已不生效）：
+        // 墨屏给纯黑，浅/深色给中性灰，别让一根红线在阅读界面里抢注意力
+        todayLineColor: inkPalette ? '#000000' : '#8c959f',
+      };
+      for (var p = 1; p <= 6; p++) {
+        themeVars['pie' + p] = palette.pies[p - 1];
+        themeVars['pie' + (p + 6)] = palette.pies[6 - p];
+      }
+      /* 思维导图（以及看板 / 树图 / 甘特分段）走 `cScaleN` 这 12 档，不走上面那一小组。
+         不给满的话 base 主题在深色档会把节点填充也反相成纯黑：真机读回
+         `.node-bkg` 的 fill = rgb(0,0,0)，纯黑画布上只有根节点那个圆
+         （另走 mainBkg = 次级灰）看得见，其余节点全没了（2026-11-17）。
+         这里按档给满：节点填充两档深灰交错，文字取正文色，内层线取边框色。 */
+      for (var c = 0; c < 12; c++) {
+        if (inkPalette) {
+          themeVars['cScale' + c] = c % 2 ? '#f2f2f2' : '#ffffff';
+          themeVars['cScaleLabel' + c] = '#000000';
+          themeVars['cScaleInv' + c] = '#000000';
+        } else if (isDark === true) {
+          themeVars['cScale' + c] = c % 2 ? '#3d444d' : '#30363d';
+          themeVars['cScaleLabel' + c] = fg;
+          themeVars['cScaleInv' + c] = border;
+        } else {
+          themeVars['cScale' + c] = c % 2 ? '#eaeef2' : '#f6f8fa';
+          themeVars['cScaleLabel' + c] = '#1f2328';
+          themeVars['cScaleInv' + c] = border;
+        }
+      }
+      try {
+        window.mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'base',
+          themeVariables: themeVars,
+          maxTextSize: 50000,
+          flowchart: { htmlLabels: false, useMaxWidth: true },
+          sequence: { useMaxWidth: true },
+          // 甘特图的「今天」竖线默认是红色：墨屏档换黑色，浅/深色档压成灰色，
+          // 免得在纯阅读界面里抢注意力
+          gantt: {
+            useMaxWidth: true,
+            todayMarker: inkPalette
+              ? 'stroke:#000000,stroke-width:1px'
+              : 'stroke:#8c959f,stroke-width:1px,opacity:0.6',
+          },
+          class: { useMaxWidth: true },
+          state: { useMaxWidth: true },
+          er: { useMaxWidth: true },
+          pie: { useMaxWidth: true },
+        });
+      } catch (e) { /* 初始化失败就让下面逐块的 render 各自报错 */ }
+      var count = 0;
+      var mathCount = 0;
+      var seq = 0;
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        var src = mdUpgradeMermaidMath(node.textContent || '');
+        var graphId = 'hyperlens-mmd-' + (++seq);
+        try {
+          var out = await window.mermaid.render(graphId, src);
+          var box = document.createElement('div');
+          box.className = 'hyperlens-mermaid-rendered';
+          box.innerHTML = window.DOMPurify
+            ? mdPurifyMermaidSvg(out.svg)
+            : out.svg;
+          // 图内公式排出来是 MathML（`<span class="katex"><math>…`），少数版本走
+          // HTML 输出 —— 两种都认，别只数 `<math>` 把「排出来了」报成 0
+          var maths = box.querySelectorAll('math');
+          mathCount += maths.length
+            ? maths.length
+            : box.querySelectorAll('.katex').length;
+          if (node.parentNode) { node.parentNode.replaceChild(box, node); }
+          if (out.bindFunctions) { out.bindFunctions(box); }
+          count++;
+        } catch (e) {
+          // 解析失败时 mermaid 会把一张「Syntax error」炸弹图挂到 body 上（id = 'd' + 图 id），
+          // 不清理它会跑到文末，看起来像整页多了一张图。原文与提示我们已经在原地保留了。
+          try {
+            var junk = document.getElementById('d' + graphId);
+            if (junk && junk.parentNode) { junk.parentNode.removeChild(junk); }
+          } catch (x) {}
+          node.className = 'hyperlens-mermaid-error';
+          // mermaid 的 ParseError 是多行长文本（带插入符与候选 token 列表），
+          // 正文里只留第一行并截断 —— 完整信息交给 console
+          var msg = String(e && e.message ? e.message : e).split('\n')[0];
+          if (msg.length > 120) { msg = msg.slice(0, 120) + '…'; }
+          node.textContent = src + '\n（图表渲染失败：' + msg + '）';
+        }
+      }
+      return { graphs: count, maths: mathCount };
+    }
+  </script>
+  <script>
+    /*__FOCUS_JS__*/
+  </script>
+  <script>
+    (async function () {
+      // 白名单清洗（D7）：不在表内的标签整段消失，任何 on* 属性都不在表内 ⇒
+      // 事件处理器不可能活下来。class 必须留 —— marked 用 <code class="language-dart">
+      // 标记语言，下面的 hljs 正是靠这个前缀识别；id 可以不列 —— 章节锚点是
+      // outline 扫描时才写进 heading 的（见下方 "章节" 段），清洗阶段剥掉不影响跳转。
+      const PURIFY_TAGS = [
+        'a', 'p', 'br', 'hr', 'img', 'code', 'pre', 'span', 'div', 'blockquote',
+        'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'strong', 'em', 'del', 'ins', 's', 'u', 'mark',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'details', 'summary', 'kbd', 'sup', 'sub', 'input',
+        'dl', 'dt', 'dd', 'figure', 'figcaption',
+      ];
+      const PURIFY_ATTRS = [
+        'href', 'src', 'alt', 'title', 'width', 'height', 'align',
+        'open', 'start', 'colspan', 'rowspan', 'class', 'style',
+        'type', 'checked', 'disabled',
+      ];
+      const payload = /*__PAYLOAD__*/;
+      const host = document.getElementById('content');
+      try {
+        if (!window.marked) {
+          host.innerHTML = '<div class="error">markdown 渲染器未加载</div>';
+          post('render ' + payload.token + ' no-marked');
+          return;
+        }
+        if (!window.DOMPurify) {
+          // 清洗器缺席就不渲染：宁可空白，也不把仓库里的 HTML 原样塞进 DOM
+          host.innerHTML = '<div class="error">markdown 清洗器未加载</div>';
+          post('render ' + payload.token + ' no-purify');
+          return;
+        }
+        if (!payload.markdown || !payload.markdown.trim()) {
+          host.innerHTML = '<div class="empty">（空文件）</div>';
+          post('render ' + payload.token + ' empty');
+          return;
+        }
+        // 单个换行按 GitHub 习惯当换行处理（breaks），否则中文 README 常常糊成一行。
+        // 必须先清洗再落 DOM：marked 不是 sanitizer，作者的 <img onerror> 会原样执行，
+        // 而本页与回环资源服务同源（挂载整个仓库根），足以读出 .git/config 里的凭据。
+        //
+        // 逐 token 渲染（等价于整篇 parse）并**在每个顶级块前插一枚行号标记**：
+        // 标记里记着这一段源码从第几行开始，扫完就摘（见 mdReadBlockLines）。
+        // 这是「预览读到哪 → 源码哪一行」的唯一线索，也是源码切回预览的落点依据。
+        // 必须以 `marked.defaults` 为底：扩展是挂在 defaults 上的，自己另拼一份
+        // options 传给 lexer 会把 extensions 丢掉 —— 表现是「扩展注册了但匹配不到」，
+        // 块级公式的 `$$` 原样露出来（2026-11-17 真机踩到）。
+        var markdownOptions = Object.assign({}, window.marked.defaults, {
+          breaks: true,
+          gfm: true,
+        });
+        var rendered = '';
+        try {
+          var tokens = window.marked.lexer(payload.markdown, markdownOptions);
+          var parts = [];
+          var sourceLine = 1;
+          for (var t = 0; t < tokens.length; t++) {
+            var raw = tokens[t].raw || '';
+            parts.push('<span class="hyperlens-md-line hyperlens-l-' + sourceLine + '"></span>');
+            parts.push(window.marked.parser([tokens[t]], markdownOptions));
+            sourceLine += raw.split('\n').length - 1;  // 换行数 = 这一段的行跨度
+          }
+          rendered = parts.join('');
+        } catch (e) {
+          // 词法只是增强：拿不到行号就整篇渲染，位置还原退化成「只能按块」
+          rendered = window.marked.parse(payload.markdown, markdownOptions);
+        }
+        host.innerHTML = window.DOMPurify.sanitize(
+          rendered,
+          { ALLOWED_TAGS: PURIFY_TAGS, ALLOWED_ATTR: PURIFY_ATTRS }
+        );
+        mdBlockLines = mdReadBlockLines(host);
+        // 正文字号由阅读偏好决定（内部标题等用 em，会跟着缩放）
+        if (payload.fontSize) {
+          host.style.fontSize = payload.fontSize + 'px';
+        }
+
+        // 代码块高亮：marked 不再内置高亮，这里对每个 <pre><code> 调 hljs
+        let highlighted = 0;
+        if (window.hljs) {
+          host.querySelectorAll('pre code').forEach(function (block) {
+            const cls = block.className || '';
+            const m = cls.match(/language-([\w+#-]+)/);
+            const lang = m && m[1] && window.hljs.getLanguage(m[1]) ? m[1] : null;
+            if (lang) {
+              block.innerHTML = window.hljs.highlight(block.textContent, {
+                language: lang,
+                ignoreIllegals: true,
+              }).value;
+              block.classList.add('hljs');
+              highlighted++;
+            }
+          });
+        }
+
+        // 公式与化学式：必须在位置还原 / 命中定位**之前**渲染完 ——
+        // KaTeX 会改变行高，先落位再换行高，读者回来时就停在偏掉的位置。
+        // 文档里没有公式（或 KaTeX 没内联）时这里返回 0，与没有这个功能时一致。
+        var mathCount = mdRenderMath(host);
+        // 转义美元符的占位在这里换回字面 `$`（必须在公式渲染之后，见函数注释）
+        mdRestoreEscapedDollars(host);
+
+        // 图表：**必须 await 完再往下走**。SVG 会撑开行高，而紧随其后的就是
+        // 章节扫描、命中定位与位置还原 —— 先落位再撑高，读者回来就停在偏掉的位置。
+        var mermaidResult = { graphs: 0, maths: 0 };
+        try {
+          mermaidResult = await mdRenderMermaid(host, payload.dark === true);
+        } catch (e) {
+          // 图表是增强：整体失败也不能让正文白屏（每块内部已各自兜错）
+          // 不回执：协议里没有 diagram 这个前缀，别往状态栏塞未知消息
+          try { console.log('HyperLens/preview 图表渲染失败: ' + (e && e.message ? e.message : e)); } catch (x) {}
+        }
+
+        const imgs = host.querySelectorAll('img').length;
+        const tables = host.querySelectorAll('table').length;
+        const codeBlocks = host.querySelectorAll('pre code').length;
+        post('render ' + payload.token + ' ok（' + payload.markdown.length + ' 字符，图片 ' + imgs +
+             '，表格 ' + tables + '，代码块 ' + codeBlocks +
+             '，高亮 ' + highlighted + (mathCount ? '，公式 ' + mathCount : '') +
+             (mermaidResult.graphs ? '，图表 ' + mermaidResult.graphs : '') +
+             (mermaidResult.maths ? '，图内公式 ' + mermaidResult.maths : '') + '）');
+
+        // 「章节」目录的清单：扫 #content 里**顶级子块**中的 h1~h6，顺带把 slug 写成 id
+        // （文档里 `[x](#小节)` 的内链这才真的跳得动）。
+        //
+        // 为什么放在 render 回执**之后**：那条回执是「页面真的跑完了」的唯一凭据
+        //（见 MarkdownView 的重试看门狗），这段万一出问题也不能把它吞掉。
+        // block 记的是它在 #content 里的**子块序号**：与位置锚点同一坐标系，
+        // 于是目录跳转能直接复用块级滚动，滚动上报也能反推「现在读到哪一节」。
+        var seenSlugs = {};
+        var outline = [];
+        for (var i = 0; i < host.children.length; i++) {
+          var heading = host.children[i];
+          var tag = heading.tagName || '';
+          if (tag.length !== 2 || tag.charAt(0) !== 'H') { continue; }
+          var level = tag.charCodeAt(1) - 48;   // 'H2' → 2
+          if (level < 1 || level > 6) { continue; }
+          var headingText = (heading.textContent || '').trim();
+          if (!heading.id) {
+            var slug = mdSlug(headingText, seenSlugs);
+            if (slug) { heading.id = slug; }
+          }
+          outline.push({
+            level: level,
+            text: headingText,
+            block: i,
+            id: heading.id || '',
+            /* 标题的源码起始行：章节高亮与源码态大纲共用「行号」这个坐标，
+               判据才能一致（见 Dart 侧 MarkdownOutline.currentForScreen）。 */
+            line: mdLineOfBlock(i),
+          });
+        }
+        post('outline ' + payload.token + ' ' + JSON.stringify(outline));
+
+        // 搜索命中：滚到那一段并高亮（见 preview_focus.dart）。
+        // 必须在位置上报**之前**做 —— 读者此刻站的地方就是命中处，返回时
+        // 也该落回这里，而不是文档开头。
+        if (payload.focus) {
+          var markedCount = hyperLensApplyFocus(payload.focus);
+          post('focus ' + payload.token + ' ' + markedCount);
+        }
+
+        // 位置还原 + 上报（见 preview_anchor.dart）：整页是刚提交的，
+        // 读者从内链跳走再返回时，这里把他放回离开时那一块。
+        //
+        // **有命中就不还原**：mdHold 会在 1.5s 内反复落位，与上面那句
+        // scrollIntoView 抢滚动条，读者看到的是「滚过去又被拽回来」。
+        if (payload.restore && !payload.focus) {
+          mdHold(payload.restore);
+          // 图片（回环资源服务）是异步来的：加载完布局才稳定，那时再按住一会儿
+          window.addEventListener('load', function () {
+            if (!mdUserTouched) { mdHold(payload.restore); }
+          });
+        }
+        // 位置回执同样带本页凭据：Dart 侧只认当前这一页报上来的位置（见 MarkdownView）
+        mdWatchAnchor(payload.token);
+        // 落定后先报一次：读者此刻就站在这里。上层要能立刻拿它做「切到源码落同一段」
+        // （以及目录高亮），不必等第一次滚动或点击。
+        if (window.__mdReportAnchor) { window.__mdReportAnchor(); }
+      } catch (e) {
+        host.innerHTML = '<div class="error">渲染失败: ' +
+          (e && e.message ? e.message : e) + '</div>';
+        post('render ' + payload.token + ' 异常: ' + (e && e.message ? e.message : e));
+      }
+    })();
+  </script>
+</body>
+</html>

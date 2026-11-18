@@ -1,0 +1,151 @@
+/*
+ * 墨水屏（单色）预览样式。
+ *
+ * 加载在 md-light.css 之后，只做**覆盖**：布局规则仍来自 light，这里把带颜色的
+ * 变量压成纯黑白，并把「靠浅灰底分层」的地方换成 1px 黑线。
+ *
+ * 为什么不能直接用 md-light.css：墨水屏只有 16 级灰，链接蓝 / 表头浅灰 / 代码块
+ * 浅灰在它上面会退化成与正文同档的灰，链接看不出是链接、表格看不出边界。
+ * 分级手段只剩两种：字重（粗/常规）与线条（1px 黑）。
+ */
+.markdown-body {
+  color-scheme: light;
+  --fgColor-default: #000000;
+  /* 次要文字留一档灰：全黑会分不出引用、脚注、h6 */
+  --fgColor-muted: #4d4d4d;
+  --fgColor-accent: #000000;
+  --fgColor-success: #000000;
+  --fgColor-attention: #000000;
+  --fgColor-danger: #000000;
+  --fgColor-done: #000000;
+  --bgColor-default: #ffffff;
+  /* 表头斑马纹 / 代码块 / 行内代码的底色：一律白，边界交给黑线 */
+  --bgColor-muted: #ffffff;
+  --bgColor-neutral-muted: #ffffff;
+  --bgColor-attention-muted: #ffffff;
+  --borderColor-default: #000000;
+  --borderColor-muted: #000000;
+  --borderColor-neutral-muted: #000000;
+  --borderColor-accent-emphasis: #000000;
+  --borderColor-success-emphasis: #000000;
+  --borderColor-attention-emphasis: #000000;
+  --borderColor-danger-emphasis: #000000;
+  --borderColor-done-emphasis: #000000;
+  --focus-outlineColor: #000000;
+  /* 语法高亮：全部灰阶，靠粗细与斜体区分关键字 */
+  --color-prettylights-syntax-comment: #6e6e6e;
+  --color-prettylights-syntax-constant: #000000;
+  --color-prettylights-syntax-constant-other-reference-link: #000000;
+  --color-prettylights-syntax-entity: #000000;
+  --color-prettylights-syntax-storage-modifier-import: #000000;
+  --color-prettylights-syntax-entity-tag: #000000;
+  --color-prettylights-syntax-keyword: #000000;
+  --color-prettylights-syntax-string: #333333;
+  --color-prettylights-syntax-variable: #4d4d4d;
+  --color-prettylights-syntax-brackethighlighter-unmatched: #000000;
+  --color-prettylights-syntax-brackethighlighter-angle: #6e6e6e;
+  --color-prettylights-syntax-invalid-illegal-text: #ffffff;
+  --color-prettylights-syntax-invalid-illegal-bg: #000000;
+  --color-prettylights-syntax-carriage-return-text: #ffffff;
+  --color-prettylights-syntax-carriage-return-bg: #000000;
+  --color-prettylights-syntax-string-regexp: #333333;
+  --color-prettylights-syntax-markup-list: #000000;
+  --color-prettylights-syntax-markup-heading: #000000;
+  --color-prettylights-syntax-markup-italic: #000000;
+  --color-prettylights-syntax-markup-bold: #000000;
+  --color-prettylights-syntax-markup-deleted-text: #ffffff;
+  --color-prettylights-syntax-markup-deleted-bg: #000000;
+  --color-prettylights-syntax-markup-inserted-text: #000000;
+  --color-prettylights-syntax-markup-inserted-bg: #ffffff;
+  --color-prettylights-syntax-markup-changed-text: #000000;
+  --color-prettylights-syntax-markup-changed-bg: #ffffff;
+  --color-prettylights-syntax-markup-ignored-text: #ffffff;
+  --color-prettylights-syntax-markup-ignored-bg: #000000;
+  --color-prettylights-syntax-meta-diff-range: #000000;
+  --color-prettylights-syntax-sublimelinter-gutter-mark: #6e6e6e;
+}
+
+/* 链接：靠下划线而不是颜色区分 */
+.markdown-body a {
+  color: #000000;
+  text-decoration: underline;
+}
+
+.markdown-body a:not([href]) {
+  text-decoration: none;
+}
+
+/* 代码块 / 行内代码：白底 + 1px 黑边 */
+.markdown-body pre,
+.markdown-body .highlight pre {
+  background-color: #ffffff;
+  border: 1px solid #000000;
+}
+
+.markdown-body code,
+.markdown-body tt {
+  background-color: #ffffff;
+  border: 1px solid #000000;
+}
+
+.markdown-body pre code,
+.markdown-body pre tt,
+.markdown-body .highlight pre code {
+  border: 0;
+  background-color: transparent;
+}
+
+.markdown-body kbd {
+  background-color: #ffffff;
+  border: 1px solid #000000;
+  box-shadow: none;
+}
+
+/* 表格：单元格 1px 黑边，去掉斑马纹 */
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid #000000;
+}
+
+.markdown-body table tr,
+.markdown-body table tr:nth-child(2n) {
+  background-color: #ffffff;
+  border-top: 1px solid #000000;
+}
+
+.markdown-body blockquote {
+  color: #000000;
+  border-left: 3px solid #000000;
+}
+
+.markdown-body hr {
+  background-color: #000000;
+}
+
+.markdown-body mark {
+  background-color: #ffffff;
+  color: #000000;
+  text-decoration: underline;
+}
+
+/* 搜索命中（`mark[data-hyperlens-focus]`）：上面那条是「白底」，在同样是白底的纸张上
+   等于只画了一条下划线，真机上看不出「亮在哪」。墨主题没有颜色可用，只能靠
+   明度差 —— 给一级灰底 + 浅描边，配合既有下划线一眼能认出。
+   这条与 markdown_view.html 里那条同特异性（0,2,1），靠「追加在浅色表之后」生效。 */
+.markdown-body mark[data-hyperlens-focus] {
+  background-color: #d9d9d9;
+  color: #000000;
+  border: 1px solid #000000;
+}
+
+.markdown-body img {
+  background-color: transparent;
+}
+
+.markdown-body .markdown-alert {
+  border-left: 3px solid #000000;
+}
+
+.markdown-body .markdown-alert .markdown-alert-title {
+  color: #000000;
+}
