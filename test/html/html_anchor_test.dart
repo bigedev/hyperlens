@@ -76,6 +76,16 @@ void main() {
       expect(body.contains('a.scrollY'), isFalse);
     });
 
+    test('`#id` 直接按 id 取（书内锚点），不当作标签名去 children 里翻', () {
+      // EPUB 的 nav 条目形如 `chap1.xhtml#sec2`，调用方转成 `#sec2` 交过来
+      final String js = htmlAnchorScript(null);
+      final int at = js.indexOf('function hyperLensByPath');
+      expect(at, greaterThanOrEqualTo(0));
+      final String body = js.substring(at, at + 420);
+      expect(body.contains("charAt(0) === '#'"), isTrue);
+      expect(body.contains('getElementById'), isTrue);
+    });
+
     test('目录跳转后记住「点的就是这一条」（末尾几节顶不到顶端）', () {
       final String js = htmlAnchorScript(null);
       expect(js, contains('hyperLensSectionClamp'));

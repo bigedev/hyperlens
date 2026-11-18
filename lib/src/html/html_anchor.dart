@@ -83,6 +83,12 @@ function hyperLensPathOf(el) {
 
 function hyperLensByPath(path) {
   if (!path) { return null; }
+  /* `#id` 是「书内锚点」，不是从 body 往下走的路径：EPUB 的 nav 里大量条目形如
+     `chap1.xhtml#sec2`，调用方把它转成 `#sec2` 交过来，这里直接按 id 取。
+     放在 split 之前，否则 `#sec2` 会被当成标签名去 children 里翻。 */
+  if (String(path).charAt(0) === '#') {
+    return document.getElementById(String(path).slice(1));
+  }
   var segs = String(path).split('>');
   var node = document.body;
   var started = false;
