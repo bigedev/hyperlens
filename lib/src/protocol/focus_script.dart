@@ -6,10 +6,9 @@
 /// 各自演化。
 library;
 
-import 'dart:convert';
-
 import '../model/preview_focus.dart';
 import 'hyperlens_bridge.dart';
+import 'js_literal.dart';
 
 /// 页面里「按片段定位并高亮」的那段脚本（**Markdown 与 HTML 预览共用**）。
 ///
@@ -102,7 +101,7 @@ function hyperLensApplyFocus(focus) {
 
 /// 页面里调用上面那段脚本的一句（JSON 已转义，可安全内联进 `<script>`）。
 String previewFocusCall(PreviewFocus focus) =>
-    'hyperLensApplyFocus(${_jsJson(focus.toJson())});';
+    'hyperLensApplyFocus(${jsJson(focus.toJson())});';
 
 /// 「源码 + 调用」：脚本模式下一次性塞进页面。
 ///
@@ -113,15 +112,12 @@ String previewFocusScript(PreviewFocus focus, {String? channelName}) {
   if (channelName == null) {
     return '$previewFocusJs\n${previewFocusCall(focus)}';
   }
-  // JS 里的字符串字面量单独拼，免得两套引号在这里打架
-  final String message =
-      "'${HyperlensBridge.focusPrefix}${HyperlensBridge.noToken} '";
+  // 回执信封（`<前缀><凭据> `）也要走同一个出口：它一样是内联进 `<script>` 的
+  // 字符串字面量。
+  final String message = jsSingleQuoted(
+    '${HyperlensBridge.focusPrefix}${HyperlensBridge.noToken} ',
+  );
   return '$previewFocusJs\n'
-      '(function(){var n=hyperLensApplyFocus(${_jsJson(focus.toJson())});'
+      '(function(){var n=hyperLensApplyFocus(${jsJson(focus.toJson())});'
       'try{window.$channelName.postMessage($message+n);}catch(e){}})();';
 }
-
-/// `jsonEncode` 的结果直接放进 JS 是安全的，唯独 `<` 要转义 —— 内联进 `<script>`
-/// 时它可能被解析成标签（与 `buildMarkdownPayload` 同一口径）。
-String _jsJson(Object? value) =>
-    jsonEncode(value).replaceAll('<', r'\u003c');

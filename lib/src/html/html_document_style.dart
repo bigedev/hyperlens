@@ -5,6 +5,8 @@
 /// 而它又没有 UI 可点 —— 抽出来才能用单测钉住，别指望真机上肉眼发现。
 library;
 
+import '../model/css_color.dart';
+
 /// 整页缩放的基准字号（16）：`htmlPreviewZoom` 拿它当 `zoom = 1.0`。
 ///
 /// 拿它当 1.0 的理由：HTML 是「看别人的页面」，默认档就该**原样呈现作者的设计**，
@@ -79,8 +81,12 @@ String htmlPreviewCss({
   bool ink = false,
   bool overrideTextColor = false,
   String foregroundHex = '#c4c7c5',
-}) =>
-    'html,body{background-color:$backgroundHex;}'
+}) {
+  // 两色都会被**原样**拼进 `<style>`：`#fff}</style><script>…` 足以破出样式块。
+  // 校验放在这里而不是调用方 —— 这个函数本身就是那个「拼进 CSS」的出口。
+  final String bg = cssHexColor(backgroundHex, 'backgroundHex');
+  final String fg = cssHexColor(foregroundHex, 'foregroundHex');
+  return 'html,body{background-color:$bg;}'
     ':root{color-scheme:${dark ? 'dark' : 'light'} !important;}'
     'body{zoom:$zoom;}'
     'a[href]{text-decoration:underline !important;text-underline-offset:2px;}'
@@ -92,8 +98,8 @@ String htmlPreviewCss({
     //
     // 不写成 `*{color}`：`*` 的特异性是 (0,0,0)，遇到作者带 `!important` 的元素级
     // 规则（`h2{color:#123 !important}`）会输；`html body *` 是 (0,0,3)，多一层兜底。
-    '${dark && overrideTextColor ? 'html,body{color:$foregroundHex !important;}'
-        'html body *{color:$foregroundHex !important;}' : ''}'
+    '${dark && overrideTextColor ? 'html,body{color:$fg !important;}'
+        'html body *{color:$fg !important;}' : ''}'
     // 搜索命中的高亮（见 preview_focus.dart）：用属性选择器把作者自己的 `mark`
     // 摘出去，只染我们包的那一层。黄底黑字在深浅两档都醒目；墨主题整页 grayscale
     // 会把它压成灰底黑字，正好也是要的。
@@ -108,6 +114,7 @@ String htmlPreviewCss({
     // 与其留半彩，不如统一成明度差（灰化后层次还在，色相信息本来也读不出）。
     // 用 `filter` 而不是 `*{color:#000}`：不动作者的语义结构，也顺带处理图片。
     '${ink ? 'html{filter:grayscale(1);}' : ''}';
+}
 
 /// 作者有没有给**整页**（`html` / `body` / `:root` / `*`）声明背景。
 ///

@@ -10,6 +10,7 @@
 library;
 
 import 'focus_script.dart';
+import 'js_literal.dart';
 import '../model/preview_focus.dart';
 import '../model/preview_position.dart';
 import '../model/preview_syntax.dart';
@@ -50,8 +51,11 @@ abstract final class HyperlensCommands {
       'window.hyperlensSyntaxAst && window.hyperlensSyntaxAst()';
 
   /// HTML：把 DOM 路径 [path] 指向的节点滚到视口顶端。
+  ///
+  /// 地址走 [jsSingleQuoted]：它可能来自**跨会话持久化**（[PreviewDomAddress] 不限
+  /// 格式），一条换行就足以让整条命令报废。
   static String scrollToPath(String path) =>
-      'hyperLensScrollToPath(${_jsString(path)})';
+      'hyperLensScrollToPath(${jsSingleQuoted(path)})';
 
   /// 对**已经打开的页面**补一次搜索定位：高亮 [focus] 指向的那一处并滚到视口中间。
   ///
@@ -67,11 +71,4 @@ abstract final class HyperlensCommands {
   /// HTML 由这段脚本发。
   static String forFocus(PreviewFocus focus, {String? channelName}) =>
       previewFocusScript(focus, channelName: channelName);
-
-  /// 单引号字符串字面量：`'` 与 `\` 要转义，`<` 一并转掉（内联进 `<script>`
-  /// 时它可能被解析成标签，与 `payload.dart` 的载荷同一个口径）。
-  static String _jsString(String value) => "'${value
-      .replaceAll(r'\', r'\\')
-      .replaceAll("'", r"\'")
-      .replaceAll('<', r'\u003c')}'";
 }

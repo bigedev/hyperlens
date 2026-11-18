@@ -5,6 +5,11 @@ import 'package:meta/meta.dart';
 /// 颜色一律用 `#rrggbb` 字符串，**不是 `Color`**：包内不 import flutter（`Color`
 /// 来自 `dart:ui`），而这些值最终是拼进 CSS 文本的，字符串就是最短路径。
 ///
+/// 这不再是口头约定：三个颜色在渲染入口（`buildMarkdownHtml` / `htmlPreviewCss`）
+/// 都会过一遍十六进制校验，命名色、`rgb()`、`var()` 一律拒绝 —— 它们被**原样**
+/// 拼进 `<style>`，`#fff}</style><script>…` 足以破出样式块。自定义配色请先转成
+/// 十六进制（`#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa`）。
+///
 /// 两个维度**互相独立**：[isDark] 决定取深色还是浅色那套主题表，[isInk] 决定要不要
 /// 再叠一层单色覆盖层。四个组合都有意义，最常见的是：
 ///

@@ -21,10 +21,9 @@
 /// 文档高度会在加载后继续变，落一次位压不住（读者看到的是「跳回来又滑走」）。
 library;
 
-import 'dart:convert';
-
 import '../model/preview_position.dart';
 import '../protocol/hyperlens_bridge.dart';
+import '../protocol/js_literal.dart';
 
 /// 回执前缀：`top - <位置 JSON>` —— 与 Markdown **同一条**（见 [HyperlensBridge]）。
 ///
@@ -546,7 +545,7 @@ String htmlAnchorScript(
   bool hold = true,
 }) {
   HyperlensBridge.checkChannelName(channelName);
-  final String json = _jsJson(_restorePayload(restore));
+  final String json = jsJson(_restorePayload(restore));
   final String script =
       _anchorJs.replaceAll(_channelPlaceholder, channelName);
   // 命中定位（HyperlensPage.focus）自己会把页面滚到目标处：这时不能再落位，
@@ -579,7 +578,4 @@ Map<String, Object?> _restorePayload(PreviewPosition? restore) {
   return target is PreviewDomAddress ? target.toJson() : PreviewDomAddress.body.toJson();
 }
 
-/// `jsonEncode` 的结果放进 JS 是安全的，唯独 `<` 要转义 —— 内联进 `<script>` 时
-/// 它可能被解析成标签（与 `preview_focus.dart` 同一口径）。
-String _jsJson(Object? value) =>
-    jsonEncode(value).replaceAll('<', r'\u003c');
+

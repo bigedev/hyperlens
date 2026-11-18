@@ -1,12 +1,12 @@
-import 'dart:convert';
-
 import '../asset/hyperlens_assets.dart';
 import '../host/logger.dart';
+import '../model/css_color.dart';
 import '../model/preview_position.dart';
 import '../model/preview_focus.dart';
-import '../protocol/hyperlens_bridge.dart';
-import 'escape.dart';
 import '../protocol/focus_script.dart';
+import '../protocol/hyperlens_bridge.dart';
+import '../protocol/js_literal.dart';
+import 'escape.dart';
 import 'extras.dart';
 
 /// 模板里 JS 通道名的占位符。
@@ -21,6 +21,9 @@ const String _channelPlaceholder = '__HYPERLENS_CHANNEL__';
 /// 就能测（比如**正文里的 `<` 必须转义**，否则内联进 `<script>` 会被解析成一个标签，
 /// 页面直接白）。
 ///
+/// 转义走 [jsJson] 这一个出口：`<`、U+2028 / U+2029 都在那边处理，这里不再自己
+/// `replaceAll` —— 分散的转义是「每发现一个禁区就要补一处」的来源。
+///
 /// [focus] 非空表示这一篇是从搜索命中打开的：渲染完要滚到那一段并高亮
 /// （见 [PreviewFocus]）。此时**不做位置还原** —— 读者要的是命中，不是上次读到哪。
 String buildMarkdownPayload({
@@ -31,7 +34,7 @@ String buildMarkdownPayload({
   required PreviewPosition restore,
   PreviewFocus? focus,
 }) {
-  return jsonEncode(<String, Object?>{
+  return jsJson(<String, Object?>{
     // `\$` 必须在进页面之前换成占位字符：marked 会把它还原成裸 `$`，
     // 到模板里就分不清「作者要字面量」还是「作者要公式」（见 markdown_escape.dart）。
     'markdown': protectEscapedDollars(markdown),
@@ -41,7 +44,7 @@ String buildMarkdownPayload({
     // 位置只发两种键之一：Markdown 模板只认 `line`，`path` 会被它忽略（→ 顶部）
     'restore': restore.toJson(),
     if (focus != null) 'focus': focus.toJson(),
-  }).replaceAll('<', r'\u003c');
+  });
 }
 
 /// 把模板里的占位符换成实际资源与载荷。
@@ -83,6 +86,11 @@ Future<String> buildMarkdownHtml({
   /// `HyperlensAssetException`（少一样就是白屏，静默比报错更难查）。
   HyperlensLogger? logger,
 }) async {
+  // 三色会被**原样**拼进模板的 `<style>`（三处占位符），所以入口先过一道十六进制
+  // 校验：`#fff}</style><script>…` 足以破出样式块，见 [cssHexColor]。
+  final String bg = cssHexColor(background, 'background');
+  final String fg = cssHexColor(foreground, 'foreground');
+  final String bd = cssHexColor(border, 'border');
   final MarkdownExtras extras = detectMarkdownExtras(markdown);
   final String html = await load(HyperlensAssets.markdownViewHtml);
   final String mdCss = await load(
@@ -127,9 +135,9 @@ Future<String> buildMarkdownHtml({
       extras.mermaid ? await optional(HyperlensAssets.mermaidJs) : '';
   return html
       .replaceAll(_channelPlaceholder, channelName)
-      .replaceAll('/*__MD_BACKGROUND__*/', background)
-      .replaceAll('/*__MD_FOREGROUND__*/', foreground)
-      .replaceAll('/*__MD_BORDER__*/', border)
+      .replaceAll('/*__MD_BACKGROUND__*/', bg)
+      .replaceAll('/*__MD_FOREGROUND__*/', fg)
+      .replaceAll('/*__MD_BORDER__*/', bd)
       .replaceFirst('/*__MD_THEME_CSS__*/', mdThemeCss)
       .replaceFirst('/*__HLJS_THEME_CSS__*/', hljsThemeCss)
       .replaceFirst('/*__KATEX_CSS__*/', katexCss)
