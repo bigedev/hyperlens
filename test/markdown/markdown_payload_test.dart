@@ -22,7 +22,7 @@ void main() {
         dark: true,
         fontSize: 18,
         token: '5:abc',
-        restore: const SourceAddress(9),
+        restore: const PreviewSourceAddress(9),
       );
       final Map<String, Object?> json =
           jsonDecode(payload.replaceAll(r'\u003c', '<')) as Map<String, Object?>;
@@ -442,7 +442,8 @@ void main() {
         template.contains('[class*="section-edge-"]') &&
             template.contains('stroke: var(--md-border-default'),
         isTrue,
-        reason: '思维导图连线由 cScale 派生，深色档会反相成黑线 —— 必须改吃宿主边框色',
+        reason: '思维导图连线由 cScale 派生，深色档会反相成黑线 —— '
+            '必须用调用方给的边框色（--md-border-default）',
       );
       expect(
         template.contains("themeVars['cScale' + c]") &&

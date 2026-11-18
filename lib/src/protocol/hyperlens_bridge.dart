@@ -7,7 +7,7 @@
 /// 模板侧对应位置：
 /// - 通道名：`window.<channelName>.postMessage(...)`（`markdown_view.html` 的占位符、
 ///   `html_anchor.dart` 注入脚本的占位符）
-/// - 回执前缀：`post('render ' + token + ...)`、`post('ast ' + ...)`、`post('scroll ' + ...)`
+/// - 回执信封：`post('<前缀>' + token + ' ' + 载荷)`，无凭据时 token 写 [noToken]
 ///
 /// **每条回执前缀都在这里定义，别在模型或注入脚本旁边另起一个 `kXxxPrefix`**：那些
 /// 常量原本散在 `html_outline.dart` / `html_anchor.dart` / `bridge.dart` 三处，
@@ -20,38 +20,45 @@ class HyperlensBridge {
 
   /// 默认 JS 通道名（Dart 侧 `addJavaScriptChannel`，页面侧 `window.<channelName>`）。
   ///
-  /// 与包品牌一致：页面是给使用方与三方看的，挂宿主品牌等于把别人的广告印在
-  /// 自己页面上。两条渲染入口都允许使用方换成自己的名字：`MarkdownPage.channelName`
+  /// 与包品牌一致：页面是给使用方与三方看的，挂调用方品牌等于把别人的广告印在
+  /// 自己页面上。两条渲染入口都允许使用方换成自己的名字：`HyperlensPage.channelName`
   /// 与 `htmlAnchorScript(channelName:)` —— WebView 侧注册的名字必须与之一致。
   static const String channelName = 'HyperLens';
 
-  /// 渲染回执的前缀：页面拼成 `<前缀><token> <正文>`。
+  /// 「这份文档没有回执凭据」的占位。
   ///
-  /// 带空格，所以 `message.substring(prefix.length)` 之后就是 token 的开头。
+  /// 信封统一是 `<前缀><凭据> <载荷>`，凭据缺失时写它 —— **不用「载荷以 `{` 开头」
+  /// 之类的嗅探**：`render` 的载荷是一句人话（`ok（…）`），JSON 判据在那个前缀上
+  /// 直接失效，而 `-` 是确定的、可测的。
+  ///
+  /// Markdown 侧凭据由调用方给（用来丢弃换文档后旧页面的收尾回执）；HTML 侧每次
+  /// 提交都是整页重载，不存在旧页面还在报，一律写 [noToken]。
+  static const String noToken = '-';
+
+  /// 渲染回执的前缀：页面拼成 `<前缀><凭据> <正文>`。
+  ///
+  /// 带空格，所以 `message.substring(prefix.length)` 之后就是凭据的开头。
   static const String receiptPrefix = 'render ';
 
-  /// `link <href>`（点链接）；href 是 URL 编码后的整段。
+  /// `link <编码后的 href>`（点链接）。不带凭据：它没有「哪一版文档」的问题。
   static const String linkPrefix = 'link ';
 
-  /// `top <token> <JSON>`（阅读位置）。
+  /// `top <凭据> <JSON>`（阅读位置）：Markdown 带 `line`，HTML 带 `path`。
+  ///
+  /// 两种文档共用一条：位置就是位置，不因为格式不同换名字。
   static const String positionPrefix = 'top ';
 
-  /// `outline <token> <JSON>`（章节清单；HTML 侧没有凭据）。
+  /// `outline <凭据> <JSON>`（章节清单）。
   static const String outlinePrefix = 'outline ';
 
-  /// `ast <token> <JSON>`（语法树；HTML 侧没有凭据）。
+  /// `ast <凭据> <JSON>`（语法树）。
   static const String astPrefix = 'ast ';
 
-  /// `focus <token> <JSON>`（搜索命中已高亮）。
+  /// `focus <凭据> <处数>`（搜索命中已高亮）。
   static const String focusPrefix = 'focus ';
 
-  /// `anchor <token> <目标>`（页内锚点已滚动到位）。
+  /// `anchor <目标>`（页内锚点已滚动到位）。不带凭据。
   static const String anchorPrefix = 'anchor ';
-
-  /// `scroll <JSON>`（HTML 侧的阅读位置）。
-  ///
-  /// 与 Markdown 的 [positionPrefix] 不同名：HTML 的地址是 DOM 路径，没有源码行。
-  static const String scrollPrefix = 'scroll ';
 
   /// 通道名要原样拼进 `window.<name>`：不是合法标识符的话页面会直接抛语法错误，
   /// 表现为整页空白（HTML 注入脚本则整段失效）—— 这种错在真机上极难归因，
@@ -62,6 +69,18 @@ class HyperlensBridge {
         name,
         'channelName',
         'JS 通道名必须是合法标识符（字母/下划线开头，只含字母数字下划线）',
+      );
+    }
+  }
+
+  /// 凭据要原样拼进信封：含空格会被拆成两截（载荷前半段变成凭据），
+  /// 等于整条回执被静默丢弃。`-` 是「无凭据」的占位，不能让调用方用它当凭据。
+  static void checkToken(String token) {
+    if (token.isEmpty || token == noToken || token.contains(' ')) {
+      throw ArgumentError.value(
+        token,
+        'token',
+        '凭据不能为空、不能含空格、不能是「无凭据」占位 "-"',
       );
     }
   }

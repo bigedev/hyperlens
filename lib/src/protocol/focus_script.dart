@@ -1,14 +1,15 @@
 /// 「按片段定位并高亮」的页面脚本：**渲染期与运行期共用这一份**。
 ///
 /// 只在本包内部用（不进 barrel）：对外只有两条入口 ——
-/// `MarkdownPage(focus:)`（渲染时带进模板）与 `HyperlensCommands.forFocus()`
+/// `HyperlensPage.focus`（渲染时带进模板）与 `HyperlensCommands.forFocus()`
 /// （对已经打开的页面补一次定位）。导出原始 JS 等于给使用方第二条路，两条迟早
-/// 各自演化（方案 §8.4 的 R1）。
+/// 各自演化。
 library;
 
 import 'dart:convert';
 
 import '../model/preview_focus.dart';
+import 'hyperlens_bridge.dart';
 
 /// 页面里「按片段定位并高亮」的那段脚本（**Markdown 与 HTML 预览共用**）。
 ///
@@ -19,13 +20,13 @@ import '../model/preview_focus.dart';
 ///   由 Dart 侧 `runJavaScript` 把「源码 + 调用」一起塞进去。
 ///
 /// 为什么两边不各写一份：两边一旦漂移，表现是「一种文档能定位、另一种不动」，
-/// 而这种差异在主机上测不出来（`flutter_tester` 里没有 WebViewPlatform，见 R131）。
+/// 而这种差异在主机上测不出来（`flutter_tester` 里没有 WebViewPlatform）。
 ///
 /// **实现口径**：
 /// - `TreeWalker` 只走文本节点，跳过 `script` / `style` / 已经包过的 `mark`；
 /// - 一处命中被行内标签（`<strong>`、`<code>`）切开时 `surroundContents` 会抛
 ///   `InvalidStateError`，那一处就跳过 —— 宁可少亮一处，也不要为了它把作者的
-///   标签结构拆坏（A 方案的已知局限，见 design.md §6.6）；
+///   标签结构拆坏（已知局限，接受）；
 /// - 滚到**视口中间**（`block:'center'`）而不是顶端：命中常常紧跟在标题下面，
 ///   贴顶会把上文切掉，读者看不出这是哪一节里的。
 const String previewFocusJs = r'''
@@ -103,9 +104,22 @@ function hyperLensApplyFocus(focus) {
 String previewFocusCall(PreviewFocus focus) =>
     'hyperLensApplyFocus(${_jsJson(focus.toJson())});';
 
-/// 给 HTML 预览用的「源码 + 调用」：脚本模式下一次性塞进页面。
-String previewFocusScript(PreviewFocus focus) =>
-    '$previewFocusJs\n${previewFocusCall(focus)}';
+/// 「源码 + 调用」：脚本模式下一次性塞进页面。
+///
+/// 给了 [channelName] 时**顺带回一条 `focus` 回执**（凭据位写 [HyperlensBridge.noToken]）：
+/// 两种文档对「命中亮了几处」的反馈因此是同一条消息（Markdown 模板自己发、带凭据）。
+/// 不给就只亮不报 —— 那是「只要它亮，不关心结果」的用法。
+String previewFocusScript(PreviewFocus focus, {String? channelName}) {
+  if (channelName == null) {
+    return '$previewFocusJs\n${previewFocusCall(focus)}';
+  }
+  // JS 里的字符串字面量单独拼，免得两套引号在这里打架
+  final String message =
+      "'${HyperlensBridge.focusPrefix}${HyperlensBridge.noToken} '";
+  return '$previewFocusJs\n'
+      '(function(){var n=hyperLensApplyFocus(${_jsJson(focus.toJson())});'
+      'try{window.$channelName.postMessage($message+n);}catch(e){}})();';
+}
 
 /// `jsonEncode` 的结果直接放进 JS 是安全的，唯独 `<` 要转义 —— 内联进 `<script>`
 /// 时它可能被解析成标签（与 `buildMarkdownPayload` 同一口径）。

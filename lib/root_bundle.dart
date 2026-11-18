@@ -14,8 +14,8 @@ import 'src/asset/asset_loader.dart';
 ///
 /// `path` 直接传 `HyperlensAssets` 的常量即可 —— 前缀里已带 `packages/hyperlens/`，
 /// `rootBundle` 认的就是这个形态。
-class RootBundleAssetLoader implements HyperlensAssetLoader {
-  const RootBundleAssetLoader();
+class HyperlensRootBundleAssetLoader implements HyperlensAssetLoader {
+  const HyperlensRootBundleAssetLoader();
 
   @override
   Future<String> loadString(String path) async {

@@ -5,7 +5,7 @@
 /// 而它又没有 UI 可点 —— 抽出来才能用单测钉住，别指望真机上肉眼发现。
 library;
 
-/// 整页缩放的基准字号 = `中` 档的预览字号（`ViewFontSize.medium.preview`）。
+/// 整页缩放的基准字号（16）：`htmlPreviewZoom` 拿它当 `zoom = 1.0`。
 ///
 /// 拿它当 1.0 的理由：HTML 是「看别人的页面」，默认档就该**原样呈现作者的设计**，
 /// 不该像 Markdown 那样由我们替它定字号；小 / 大 两档再按比例缩。
@@ -32,10 +32,10 @@ double htmlPreviewZoom(double previewFontSize) {
 /// （深色档另有可能提亮作者写死的整页字色，见 `liftText`）。
 ///
 /// 各条规则的**优先级意图各不相同**，别当成并列的几条去「统一」：
-/// - `html,body{background-color}`：**兜底** —— 作者声明了底色就让它赢（同 R101）；
-/// - `:root{color-scheme}`：让 **UA 默认色**跟着我们的底色走（见 R118）；
+/// - `html,body{background-color}`：**兜底** —— 作者声明了底色就让它赢；
+/// - `:root{color-scheme}`：让 **UA 默认色**跟着我们的底色走；
 /// - `body{zoom}`：作者一般不会声明，声明了也该由它赢（那是它的版面设计）；
-/// - `a[href]{text-decoration:underline !important}`：**必须覆盖作者**。见 R108 ——
+/// - `a[href]{text-decoration:underline !important}`：**必须覆盖作者** ——
 ///   作者那句 `text-decoration:none` 等于「靠颜色区分链接」，而墨水屏没有颜色这一路，
 ///   下划线是唯一的形状线索。
 ///
@@ -47,11 +47,11 @@ double htmlPreviewZoom(double previewFontSize) {
 ///   作者写 `a[href]{none}` 或 `#wrap a{none}` 时，带 `!important` 计算值 = `underline`、
 ///   去掉立刻回 `none`。只碰装饰，颜色一律留给作者（实测作者的颜色原样保留）。
 ///
-/// **[dark] 为什么必须有（R118）**：底色是我们按**应用主题**注入的，而页面里那些
+/// **[dark] 为什么必须有**：底色是我们按调用方给的**界面主题**注入的，而页面里那些
 /// 「没写 `color` 的文字」用的是 **UA 默认色**，它跟的是**系统**的
-/// `prefers-color-scheme` —— 两个开关互不相干。应用切深色、系统还是浅色时，页面就
-/// 成了「我们给深底、UA 给黑字」：`assets/demo-repo/code/index.html` 整页黑成一团，
-/// 表现出来就是「打开后没有显示内容」（同一页切浅色主题立刻正常）。
+/// `prefers-color-scheme` —— 两个开关互不相干。调用方切深色、系统还是浅色时，页面就
+/// 成了「我们给深底、UA 给黑字」，整页黑成一团，表现出来就是「打开后没有显示内容」
+/// （同一页切浅色主题立刻正常）。
 ///
 /// 用 `color-scheme` 而**不是**无条件写 `color`：
 /// - 它只改 UA 默认色（正文默认色、表单控件、滚动条），作者写过的 `color` 一概不碰；
@@ -181,10 +181,10 @@ bool _isPageSelector(String selectors) => selectors.split(',').any((String raw) 
 /// （quirks mode），盒模型随之改变，整页变形 —— 这就是后面那两段 fallback 存在的理由。
 ///
 /// 插在文档**靠前**是有意的：作者自己的样式在后面、优先级更高，我们只做兜底
-/// （页面自己声明了底色就让它保持自己的底色，同 R101 的口径）。样式表内也一样，
+/// （页面自己声明了底色就让它保持自己的底色）。样式表内也一样，
 /// 所以 `html,body{background}` 这种兜底规则会被作者后面的声明覆盖。
 ///
-/// **唯一的例外是链接下划线**（调用方传进来的 CSS 里带 `!important`，见 R108）：
+/// **唯一的例外是链接下划线**（`htmlPreviewCss` 产出的 CSS 里带 `!important`）：
 /// 底色是「作者没表态时替他兜底」，而链接下划线是「作者表态了也必须改」—— 因为在
 /// 墨水屏上「下划线」是认出链接的唯一线索，作者那句 `text-decoration:none` 正是
 /// 「靠颜色区分」的写法。`!important` 挡的是**同 / 更高特异性**的作者规则（普通
@@ -210,13 +210,13 @@ String injectStyleIntoHtml(String html, String css) {
 
 /// 把一段**我们自己的**脚本挂到文档末尾（`</body>` 之前，没有就追加）。
 ///
-/// 为什么挂末端而不是 `loadHtmlString` 之后 `runJavaScript`：OHOS 上没有可靠的
-/// 「加载完成」回调（见 `markdown_view.dart` 的看门狗注释），早一步执行就落空。
-/// 随文档一起解析执行，等于把「等页面就绪」交给浏览器自己排。
+/// 为什么挂末端而不是 `loadHtmlString` 之后 `runJavaScript`：移动端 WebView 上没有
+/// 可靠的「加载完成」回调，早一步执行就落空。随文档一起解析执行，等于把「等页面
+/// 就绪」交给浏览器自己排。
 ///
 /// ⚠️ 调用前**必须**先用 [stripAuthorScripts] 摘掉作者的脚本：这个口子只为我们
 /// 自己的脚本开（搜索命中定位见 `preview_focus.dart`、阅读位置见
-/// `html_anchor.dart`），不能顺带把仓库里的任意 HTML 跑起来（原口径见 R45）。
+/// `html_anchor.dart`），不能顺带把文档里的任意脚本跑起来。
 String injectScriptIntoHtml(String html, String script) {
   final String tag = '<script>$script</script>';
   final RegExpMatch? body = RegExp(
@@ -270,10 +270,9 @@ String stripAuthorScripts(String html) {
 /// 只对「别人的页面」摘：为定位 / 阅读位置而开脚本时，作者的 `<script>` 与内联
 /// 事件不能跟着跑。
 ///
-/// [ownPage] 为 true 的是**我们自己生成的页面**（看图那页）——那份 html 里的脚本
-/// 就是我们的桥脚本，跟着一起摘的话缩放按钮点了不动、横滑与双击也不回报，整屏只剩
-/// 静态图。所以「开着脚本」不等于「该摘」：判据是「我们要开脚本，且这页不是我们自己
-/// 生成的」。
+/// [ownPage] 为 true 的是**调用方自己生成的页面** —— 那份 html 里的脚本就是它自己的
+/// 桥脚本，跟着一起摘的话桥也没了，整页只剩静态内容。所以「开着脚本」不等于「该摘」：
+/// 判据是「我们要开脚本，且这页不是我们自己生成的」。
 ///
 /// 其余开关各自代表一种「需要我们注入脚本」的能力：定位搜索命中（[focus]）、记阅读
 /// 位置（[restore] / [anchor]）、章节清单（[outline]）、读到第几节（[section]）。
@@ -294,7 +293,7 @@ bool stripsAuthorScripts({
 ///
 /// 为什么需要这条判据：`assets/web/markdown_view.html` 这类页面 body 里只有一个空
 /// `<div id="content"></div>`（body 合计 70 多字符），正文全部由脚本渲染。预览一律
-/// 不执行作者脚本（R45），于是整页纯白 —— 读者只会当成「这个文件打不开/坏了」，
+/// 不执行作者脚本，于是整页纯白 —— 读者只会当成「这个文件打不开/坏了」，
 /// 而真正的原因是**内容在脚本里**。调用方据此给一句说明，别让白屏自己说话。
 ///
 /// 注意不能拿 `&nbsp;` 当内容：排版用的空段落满地都是，去掉实体后再判。
@@ -332,7 +331,7 @@ bool htmlHasVisibleContent(String html) {
 /// 文档里有没有**相对**资源引用（`src` / `href` / CSS `url()`）。
 ///
 /// 只用来决定「baseUrl 迟到时要不要重载」：没有相对引用的页面，两次提交的内容
-/// 一模一样，重载只会让读者白挨一次闪烁（宿主据此决定要不要重新提交页面）。
+/// 一模一样，重载只会让读者白挨一次闪烁（调用方据此决定要不要重新提交页面）。
 ///
 /// 属性只在**标签内部**找：脚本里 `var href = a.getAttribute('href')` 这种赋值
 /// 不是引用，拿整篇去扫会把「全内联的模板页」误判成有资源（踩过）。

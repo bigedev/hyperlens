@@ -4,7 +4,7 @@ import 'package:hyperlens/src/model/preview_syntax.dart';
 /// 语法树模型（`preview_syntax.dart`）。
 ///
 /// 这一层只有「解析 + 闸门 + 序列化」，没有解析器：树由页面侧收集
-/// （方案 §4.5 / §4.6），Dart 侧只负责把一条回执变成可用的结构。
+/// Dart 侧只负责把一条回执变成可用的结构。
 void main() {
   group('解析骨架载荷', () {
     test('数组载荷（模板最早发的形态）：Markdown 顶层块 + 行范围', () {

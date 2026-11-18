@@ -6,7 +6,7 @@ import '../model/preview_position.dart';
 import '../model/preview_focus.dart';
 import '../protocol/hyperlens_bridge.dart';
 import 'escape.dart';
-import 'focus_script.dart';
+import '../protocol/focus_script.dart';
 import 'extras.dart';
 
 /// 模板里 JS 通道名的占位符。
@@ -17,9 +17,9 @@ const String _channelPlaceholder = '__HYPERLENS_CHANNEL__';
 
 /// 页面载荷：一份 JSON，模板里由 `/*__PAYLOAD__*/` 占位。
 ///
-/// 从 `markdown_view.dart` 的 `_render` 里拆出来 —— 它只做「拼一个字符串」，与
-/// WebView 生命周期无关，所以能在主机上测（比如**正文里的 `<` 必须转义**，
-/// 否则内联进 `<script>` 会被解析成一个标签，页面直接白）。
+/// 单独一个函数是因为它只做「拼一个字符串」：与 WebView 生命周期无关，所以在主机上
+/// 就能测（比如**正文里的 `<` 必须转义**，否则内联进 `<script>` 会被解析成一个标签，
+/// 页面直接白）。
 ///
 /// [focus] 非空表示这一篇是从搜索命中打开的：渲染完要滚到那一段并高亮
 /// （见 [PreviewFocus]）。此时**不做位置还原** —— 读者要的是命中，不是上次读到哪。
@@ -62,7 +62,7 @@ Future<String> buildMarkdownHtml({
   required bool dark,
   required String background,
 
-  /// 正文色与图表描边色（见 `markdown_view.dart` 的 `_previewColors`）：
+  /// 正文色与图表描边色：
   /// 网页里的 `body` 没有 color 规则，不显式给的话图表会取到浏览器默认黑。
   required String foreground,
   required String border,

@@ -1,9 +1,9 @@
-/// 预览的**语法树**：一次解析得出的结构（方案 §4）。
+/// 预览的**语法树**：一次解析得出的结构。
 ///
-/// 存在的理由只有一条：渲染、大纲、锚点、AST 必须共享**同一次解析**
-/// （`preview-plugin-and-ast-plan.md` §4.1）。所以这里只有**数据**，没有解析器 ——
-/// Markdown 的树由页面用同一个 `marked.lexer()` 顺手收集（§4.5），HTML 的树由浏览器
-/// 自己的 `document` 遍历得出（§4.6）。Dart 侧只负责校验、截断与交付给上层。
+/// 存在的理由只有一条：渲染、大纲、锚点、AST 必须共享**同一次解析**，否则同一篇
+/// 文档里的「第 12 行」在两处可能指向不同内容。所以这里只有**数据**，没有解析器 ——
+/// Markdown 的树由页面用同一个 `marked.lexer()` 顺手收集，HTML 的树由浏览器
+/// 自己的 `document` 遍历得出。Dart 侧只负责校验、截断与交付给调用方。
 ///
 /// 与 [PreviewPosition] 的关系：节点上的 `line` 是 Markdown 的源码行（1 起），
 /// `path` 是 HTML 的 DOM 路径 —— 与阅读位置**同一套坐标**。HTML 侧 `line` 恒为
@@ -37,8 +37,8 @@ enum PreviewSourceKind {
       };
 }
 
-/// 树的闸门（§4.4）。**页面侧照这些数字裁剪**，Dart 侧再兜一次底：
-/// 一条被改坏的载荷不该把宿主的 UI 卡住。
+/// 树的闸门。**页面侧照这些数字裁剪**，Dart 侧再兜一次底：
+/// 一条被改坏的载荷不该把调用方的界面卡住。
 ///
 /// 数值是初值 —— 实施后用三类语料实测（10 KB README / 200 KB 技术文档 /
 /// 含 2000 段列表的生成文件），把「解析 + 序列化 + IPC」压在 `render` 回执之后
@@ -110,7 +110,7 @@ class PreviewSyntaxIssue {
 
   /// 一句话说明**为什么这么判**（例如「围栏 ``` 没闭合，后面的内容都成了代码」）。
   ///
-  /// 由判定方给：页面侧判定的带页面自己的数据（列数、围栏字符），宿主直接展示。
+  /// 由判定方给：页面侧判定的带页面自己的数据（列数、围栏字符），调用方直接展示。
   final String? detail;
 
   /// 1 起源码行；HTML 问题按行扫源码时也有，按 DOM 遍历时没有。
@@ -148,8 +148,8 @@ class PreviewSyntaxIssue {
     );
   }
 
-  /// 值相等：宿主拿它判断「这一份清单与上一份是不是同一份」—— 页面每次重渲都会
-  /// 发一份新对象，按身份比会把每次重渲都当成「问题变了」（与 [OutlineEntry] 同因）。
+  /// 值相等：调用方拿它判断「这一份清单与上一份是不是同一份」—— 页面每次重渲都会
+  /// 发一份新对象，按身份比会把每次重渲都当成「问题变了」（与 [PreviewOutlineEntry] 同因）。
   @override
   bool operator ==(Object other) =>
       other is PreviewSyntaxIssue &&
@@ -225,7 +225,7 @@ class PreviewSyntaxNode {
       };
 
   /// 值相等：节点树按内容比（[children] 递归比），页面重渲发来的新对象不会被当成
-  /// 「结构变了」。没有这条，宿主只能用「节点数 + 第一个节点」这种近似判据。
+  /// 「结构变了」。没有这条，调用方只能用「节点数 + 第一个节点」这种近似判据。
   @override
   bool operator ==(Object other) =>
       other is PreviewSyntaxNode &&
@@ -301,7 +301,7 @@ class PreviewSyntaxTree {
   /// 面板顶部汇总。
   final List<PreviewSyntaxIssue> issues;
 
-  /// 把「宿主 / 解析侧才发现的问题」并进来（例如 HTML 标签扫描只能看源码文本）。
+  /// 把「解析侧才发现的问题」并进来（例如 HTML 标签扫描只能看源码文本）。
   ///
   /// 去重按「种类 + 落点」：同一处同一个问题不该出现两次。
   PreviewSyntaxTree mergeIssues(List<PreviewSyntaxIssue> extra) {
@@ -362,7 +362,7 @@ class PreviewSyntaxTree {
   ///
   /// [fallbackKind] 在载荷没带 kind 时用 —— HTML 那条通道同样发数组，调用方自己
   /// 知道是哪种文档。认得出来的单条坏节点丢掉那一条（目录少一行不影响阅读，而在
-  /// 这条路径上抛异常会让人以为整页坏了，与 `HtmlOutline.parse` 同口径）。
+  /// 这条路径上抛异常会让人以为整页坏了，与 `PreviewHtmlOutline.parse` 同口径）。
   static PreviewSyntaxTree parse(
     Object? value, {
     PreviewSourceKind fallbackKind = PreviewSourceKind.markdown,
@@ -535,7 +535,7 @@ class PreviewSyntaxTree {
 /// 解析过程中的计数器：节点总数、「有没有触到闸门」、以及顺手攒下的问题。
 class _Budget {
   /// 解析侧最多攒这么多条问题。一个被改坏的载荷（五万个未知类型节点）不该
-  /// 让宿主的面板滚三屏 —— 这类补充信息宁少不多。
+  /// 让调用方的面板滚三屏 —— 这类补充信息宁少不多。
   static const int maxIssues = 50;
 
   int total = 0;

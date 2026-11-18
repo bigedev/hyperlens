@@ -12,32 +12,32 @@ void main() {
         '{"level":3,"text":"macOS 工具链","line":20,"id":"macos-工具链"}]';
 
     test('字符串载荷（JS JSON.stringify）逐字段还原，地址是源码行', () {
-      final MarkdownOutline outline = MarkdownOutline.parse(payload);
+      final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse(payload);
       expect(outline.length, 3);
       expect(outline.isEmpty, isFalse);
       expect(outline.entries[1].level, 2);
       expect(outline.entries[1].text, '环境要求');
-      expect(outline.entries[1].address, const SourceAddress(12));
+      expect(outline.entries[1].address, const PreviewSourceAddress(12));
       expect(outline.entries[2].id, 'macos-工具链');
     });
 
     test('也收已解好的 List（与 PreviewPosition.tryParse 同口径）', () {
-      final MarkdownOutline outline = MarkdownOutline.parse(<Object?>[
+      final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse(<Object?>[
         <String, Object?>{'level': 2, 'text': '只有一节', 'line': 5},
       ]);
       expect(outline.length, 1);
       expect(outline.entries.single.id, '');
-      expect(outline.entries.single.address, const SourceAddress(5));
+      expect(outline.entries.single.address, const PreviewSourceAddress(5));
     });
 
     test('坏载荷一律当「没有章节」，不抛异常（它跑在「渲染是否成功」的路径旁边）', () {
       for (final Object? bad in <Object?>['', 'not json', '{}', 'null', '[]', null, 42]) {
-        expect(MarkdownOutline.parse(bad).isEmpty, isTrue, reason: '载荷：$bad');
+        expect(PreviewMarkdownOutline.parse(bad).isEmpty, isTrue, reason: '载荷：$bad');
       }
     });
 
     test('单条坏就丢那一条，其余照收', () {
-      final MarkdownOutline outline = MarkdownOutline.parse('['
+      final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse('['
           '{"level":2,"text":"好的","line":4},'
           '{"level":9,"text":"层级越界","line":5},'
           '{"line":6},'
@@ -51,33 +51,33 @@ void main() {
       expect(outline.entries[0].text, '好的');
       // 缺 text 的那条保留（标题可能是纯图标），文本按空串处理，抽屉里显示占位
       expect(outline.entries[1].text, '');
-      expect(outline.entries[1].address, const SourceAddress(7));
+      expect(outline.entries[1].address, const PreviewSourceAddress(7));
     });
 
     test('载荷顺序乱了也按行号排好 —— 否则二分反查会给错小节', () {
-      final MarkdownOutline outline = MarkdownOutline.parse(
+      final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse(
         '[{"level":2,"text":"后","line":30},{"level":2,"text":"前","line":2}]',
       );
-      expect(outline.entries.first.address, const SourceAddress(2));
-      expect(outline.entries.last.address, const SourceAddress(30));
+      expect(outline.entries.first.address, const PreviewSourceAddress(2));
+      expect(outline.entries.last.address, const PreviewSourceAddress(30));
       expect(outline.sectionAtLine(3), 0);
     });
 
     test('同字段即同一条（抽屉靠它判断要不要重建）', () {
       expect(
-        MarkdownOutline.parse(payload).entries[1],
-        MarkdownOutline.parse(payload).entries[1],
+        PreviewMarkdownOutline.parse(payload).entries[1],
+        PreviewMarkdownOutline.parse(payload).entries[1],
       );
       expect(
-        const OutlineEntry(level: 2, text: 'a', address: SourceAddress(1)),
-        const OutlineEntry(level: 2, text: 'a', address: SourceAddress(1), id: ''),
+        const PreviewOutlineEntry(level: 2, text: 'a', address: PreviewSourceAddress(1)),
+        const PreviewOutlineEntry(level: 2, text: 'a', address: PreviewSourceAddress(1), id: ''),
       );
     });
   });
 
   group('缩进按最外层标题归一', () {
     test('文档从 ## 起步时整篇不多缩一层', () {
-      final MarkdownOutline outline = MarkdownOutline.parse('['
+      final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse('['
           '{"level":2,"text":"环境要求","line":1},'
           '{"level":3,"text":"Flutter-OH SDK","line":5},'
           '{"level":2,"text":"编译与运行","line":9}'
@@ -89,7 +89,7 @@ void main() {
     });
 
     test('跳级照实缩进，但封顶 3 层（手机竖屏再深就成一条缝）', () {
-      final MarkdownOutline outline = MarkdownOutline.parse('['
+      final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse('['
           '{"level":1,"text":"A","line":1},'
           '{"level":4,"text":"B","line":2},'
           '{"level":6,"text":"C","line":3}'
@@ -100,17 +100,17 @@ void main() {
     });
 
     test('空清单与其他越界下标都回 0', () {
-      expect(MarkdownOutline.empty.indentOf(0), 0);
-      expect(MarkdownOutline.empty.baseLevel, 1);
-      final MarkdownOutline outline =
-          MarkdownOutline.parse('[{"level":2,"text":"a","line":1}]');
+      expect(PreviewMarkdownOutline.empty.indentOf(0), 0);
+      expect(PreviewMarkdownOutline.empty.baseLevel, 1);
+      final PreviewMarkdownOutline outline =
+          PreviewMarkdownOutline.parse('[{"level":2,"text":"a","line":1}]');
       expect(outline.indentOf(-1), 0);
       expect(outline.indentOf(99), 0);
     });
   });
 
   group('反查「现在读到哪一节」', () {
-    final MarkdownOutline outline = MarkdownOutline.parse('['
+    final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse('['
         '{"level":1,"text":"A","line":10},'
         '{"level":2,"text":"B","line":50}'
         ']');
@@ -119,7 +119,7 @@ void main() {
       expect(outline.sectionAtLine(1), 0);
       expect(outline.sectionAtLine(9), 0);
       expect(outline.sectionAtLine(0), -1); // 没有行号就没有「当前项」
-      expect(MarkdownOutline.empty.sectionAtLine(3), -1);
+      expect(PreviewMarkdownOutline.empty.sectionAtLine(3), -1);
     });
 
     test('标题本身与它下面的正文都算这一节', () {
@@ -132,7 +132,7 @@ void main() {
 
   group('屏幕上的当前节：标题还在屏上就算它（与源码态同一判据）', () {
     // 甲 @1（1..40）、乙 @41（41..80）、丙 @81
-    final MarkdownOutline outline = MarkdownOutline.parse('['
+    final PreviewMarkdownOutline outline = PreviewMarkdownOutline.parse('['
         '{"level":1,"text":"甲","line":1},'
         '{"level":2,"text":"乙","line":41},'
         '{"level":2,"text":"丙","line":81}'
@@ -171,21 +171,21 @@ void main() {
     test('回执没带行号（老页面 / 空页）：返回 -1，不猜', () {
       expect(outline.sectionAtViewport(PreviewViewport.empty), -1);
       expect(outline.sectionAtViewport(const PreviewViewport(topLine: 0)), -1);
-      expect(MarkdownOutline.empty.sectionAtViewport(view(5, 20)), -1);
+      expect(PreviewMarkdownOutline.empty.sectionAtViewport(view(5, 20)), -1);
     });
   });
 
   group('「这份清单换了没有」按内容比', () {
-    const MarkdownOutline one = MarkdownOutline(<OutlineEntry>[
-      OutlineEntry(level: 1, text: 'A', address: SourceAddress(1), id: 'a'),
-      OutlineEntry(level: 2, text: 'B', address: SourceAddress(9), id: 'b'),
+    const PreviewMarkdownOutline one = PreviewMarkdownOutline(<PreviewOutlineEntry>[
+      PreviewOutlineEntry(level: 1, text: 'A', address: PreviewSourceAddress(1), id: 'a'),
+      PreviewOutlineEntry(level: 2, text: 'B', address: PreviewSourceAddress(9), id: 'b'),
     ]);
 
     test('同一份清单重新回传（新对象）算一样 —— 重渲不该清折叠', () {
       // 别提成 const：const 会被规范化成同一个实例，那样测的就不是「新对象」
-      final MarkdownOutline again = MarkdownOutline(<OutlineEntry>[
-        const OutlineEntry(level: 1, text: 'A', address: SourceAddress(1), id: 'a'),
-        const OutlineEntry(level: 2, text: 'B', address: SourceAddress(9), id: 'b'),
+      final PreviewMarkdownOutline again = PreviewMarkdownOutline(<PreviewOutlineEntry>[
+        const PreviewOutlineEntry(level: 1, text: 'A', address: PreviewSourceAddress(1), id: 'a'),
+        const PreviewOutlineEntry(level: 2, text: 'B', address: PreviewSourceAddress(9), id: 'b'),
       ]);
       expect(identical(one, again), isFalse);
       expect(one.sameContentAs(again), isTrue);
@@ -194,35 +194,35 @@ void main() {
     test('标题改了 / 层级变了 / 地址变了 / 增删一节，都算换了', () {
       expect(
         one.sameContentAs(
-          const MarkdownOutline(<OutlineEntry>[
-            OutlineEntry(level: 1, text: 'A', address: SourceAddress(1), id: 'a'),
-            OutlineEntry(level: 2, text: 'B2', address: SourceAddress(9), id: 'b'),
+          const PreviewMarkdownOutline(<PreviewOutlineEntry>[
+            PreviewOutlineEntry(level: 1, text: 'A', address: PreviewSourceAddress(1), id: 'a'),
+            PreviewOutlineEntry(level: 2, text: 'B2', address: PreviewSourceAddress(9), id: 'b'),
           ]),
         ),
         isFalse,
       );
       expect(
         one.sameContentAs(
-          const MarkdownOutline(<OutlineEntry>[
-            OutlineEntry(level: 3, text: 'B', address: SourceAddress(9), id: 'b'),
+          const PreviewMarkdownOutline(<PreviewOutlineEntry>[
+            PreviewOutlineEntry(level: 3, text: 'B', address: PreviewSourceAddress(9), id: 'b'),
           ]),
         ),
         isFalse,
       );
       expect(
         one.sameContentAs(
-          const MarkdownOutline(<OutlineEntry>[
-            OutlineEntry(level: 1, text: 'A', address: SourceAddress(1), id: 'a'),
-            OutlineEntry(level: 2, text: 'B', address: SourceAddress(10), id: 'b'),
+          const PreviewMarkdownOutline(<PreviewOutlineEntry>[
+            PreviewOutlineEntry(level: 1, text: 'A', address: PreviewSourceAddress(1), id: 'a'),
+            PreviewOutlineEntry(level: 2, text: 'B', address: PreviewSourceAddress(10), id: 'b'),
           ]),
         ),
         isFalse,
       );
-      expect(one.sameContentAs(MarkdownOutline.empty), isFalse);
+      expect(one.sameContentAs(PreviewMarkdownOutline.empty), isFalse);
     });
 
     test('空清单与自己一样（首帧还没收到回执时不该判成「换了」）', () {
-      expect(MarkdownOutline.empty.sameContentAs(MarkdownOutline.empty), isTrue);
+      expect(PreviewMarkdownOutline.empty.sameContentAs(PreviewMarkdownOutline.empty), isTrue);
     });
   });
 

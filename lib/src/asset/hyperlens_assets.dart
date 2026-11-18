@@ -25,7 +25,7 @@ class HyperlensAssets {
 
   // ---- 模板 ----
 
-  /// markdown 渲染页：`MarkdownPage.render` 的占位符宿主。
+  /// markdown 渲染页模板：`HyperlensPage.render` 的占位符都在它里面。
   static const String markdownViewHtml = '$prefix/markdown_view.html';
 
   // ---- markdown 主题（GitHub 样式 + 墨水屏覆盖）----

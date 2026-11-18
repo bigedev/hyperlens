@@ -24,10 +24,10 @@
       margin: 0;
       padding: 0;
       /* 底色由 Dart 侧按当前模式注入（不能用 WebView 的 setBackgroundColor：
-         它只对首次加载生效，切换底色后画面不重绘，见 design.md R57） */
+         它只对首次加载生效，切换底色后画面不重绘） */
       background-color: /*__MD_BACKGROUND__*/;
       /* 图表按这里取正文色：body 没有自己的 color 规则时浏览器默认是黑字 ——
-         深色档就变成深底黑字（2026-11-17 真机反馈）。边框变量也由宿主给：
+         深色档就变成深底黑字（真机反馈）。边框变量也由 Dart 侧给：
          墨屏按「纯黑边框」认成黑白图表，见 mdRenderMermaid 的 inkPalette。 */
       color: /*__MD_FOREGROUND__*/;
       --md-border-default: /*__MD_BORDER__*/;
@@ -56,7 +56,7 @@
     /* 思维导图的连线：Mermaid 把「节点填充」和「连线」绑在同一个 `cScaleN` 上，
        base 主题深色档反相出来的是黑线 —— 纯黑画布上整张图只剩文字，连线全丢
        （2026-11-17 真机读回 .section-edge-0 的 stroke = rgb(0,0,0)）。
-       连线改吃宿主的边框色：浅色 #d0d7de、深色 #d0d7de、墨屏 #000000 —— 三档都
+       连线改吃调用方给的边框色：浅色 #d0d7de、深色 #d0d7de、墨屏 #000000 —— 三档都
        与底色有对比；`!important` 压住 Mermaid 注入在 SVG 里的 .section-edge-N 规则。 */
     .hyperlens-mermaid-rendered svg [class*="section-edge-"] {
       stroke: var(--md-border-default, #d0d7de) !important;
@@ -107,7 +107,7 @@
        ⇒ 链接彻底看不出来（用户报的正是这个）。
        这里**只补下划线、不动颜色**：彩色屏照旧蓝色链接，墨水屏靠形状也能一眼认出。
        放在主题 CSS **之后**：`a[href]` 让特异性（0,2,1）高于主题的 `.markdown-body a`
-       （0,1,1），再加一条兜底 —— 后者胜。见 design.md R108。 */
+       （0,1,1），再加一条兜底 —— 后者胜。 */
     .markdown-body a[href] {
       text-decoration: underline;
       /* 汉字的下划线贴太近会和笔画糊在一起，拉开一点 */
@@ -204,7 +204,7 @@
       return lines;
     }
 
-    /* ── 语法树（`ast` 回执，见 preview_syntax.dart / 方案 §4）───────────────
+    /* ── 语法树（`ast` 回执，见 preview_syntax.dart）───────────────
        与渲染**同一次 lexer**：下面渲染的 token 循环顺手收集，绝不另起一套解析
        （§4.1 —— 第二个解析器会在 Setext 标题、松散列表这些地方差一到几个 token）。
 
@@ -968,7 +968,7 @@
       var nodes = host.querySelectorAll('pre.hyperlens-mermaid');
       if (!nodes.length) { return 0; }
       // 从 `.markdown-body` 取，不取 `document.body`：正文色由 md-*.css 挂在
-      // `#content` 上（body 那条是宿主注入的兜底），以正文为准。
+      // `#content` 上（body 那条是 Dart 侧注入的兜底），以正文为准。
       var cs = window.getComputedStyle(host);
       var fg = cs.color || '#1f2328';
       var bg = cs.backgroundColor || '#ffffff';

@@ -26,13 +26,14 @@ Unreleased. First extraction from the preview implementation of an editor app.
   focus applied, anchor scrolled, unknown message.
 - Source-linked outline and syntax tree built from the same parse.
 - Web assets (marked, DOMPurify, KaTeX, mhchem, highlight.js, Mermaid) declared by
-  the package; the host stops declaring them.
-- Public surface: `MarkdownPage` is the single render entry; `HyperlensAssets`,
+  the package; the caller stops declaring them.
+- Public surface: `HyperlensPage.fromText` is the single render entry (Markdown and
+  HTML alike); `HyperlensAssets`,
   `HyperlensBridge`, `HyperlensTheme`, `HyperlensLogger` and `HyperlensAssetLoader`
-  (`RootBundleAssetLoader` for Flutter) are the rest of it.
+  (`HyperlensRootBundleAssetLoader` for Flutter) are the rest of it.
 - The WebView channel name is injected instead of being hard-coded: the Markdown
   template takes it through a placeholder, `htmlAnchorScript(channelName:)` for the
-  HTML side, so a host can register its own name. Either has to match
+  HTML side, so the caller can register its own name. Either has to match
   `addJavaScriptChannel`, and a name that is not a valid identifier is rejected while
   the script is assembled.
 - Missing enhanced assets (KaTeX, mhchem, Mermaid) degrade to plain text and report
@@ -44,8 +45,8 @@ Unreleased. First extraction from the preview implementation of an editor app.
   Mermaid hard-codes `mix-blend-mode: multiply` on them, which only works over a light
   page; the blend mode is now set back to `normal` for the dark themes only, so the
   light and light-ink looks are unchanged.
-- Reading positions are one address type (breaking): `SourceAddress` for a Markdown source
-  line, `DomAddress` for an HTML DOM path such as `body>div#main>p:nth(3)`, plus
+- Reading positions are one address type (breaking): `PreviewSourceAddress` for a Markdown source
+  line, `PreviewDomAddress` for an HTML DOM path such as `body>div#main>p:nth(3)`, plus
   `PreviewViewport` carrying the per-frame viewport lines that drive outline highlighting.
   `PreviewAnchor` (`block` / `offset` / `scrollY`) is gone, pages are only told to scroll
   through `HyperlensCommands` (`mdScrollToLine` / `hyperLensScrollToPath`), and a position

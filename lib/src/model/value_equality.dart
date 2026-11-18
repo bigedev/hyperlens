@@ -1,7 +1,8 @@
 /// 数据类的列表字段怎么比。
 ///
 /// 不用 `package:flutter/foundation.dart` 的 `listEquals`：主入口不许 import
-/// `flutter/*`（方案 §8.2 的 R5），而为了一个函数去加 `package:collection` 不值当。
+/// `flutter/*`（见 `hyperlens.dart` 的边界说明），而为了一个函数去加
+/// `package:collection` 不值当。
 library;
 
 /// 两个列表是否同序同值。

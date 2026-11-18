@@ -29,7 +29,7 @@ dev_dependencies:
     sdk: flutter
   lints: ^6.0.0
 
-# 资产的唯一声明处：宿主不再声明同名路径（否则重复声明会让两处都可能失效）。
+# 资产的唯一声明处：调用方不要再声明同名路径（重复声明会让两处都可能失效）。
 flutter:
   assets:
     - assets/web/

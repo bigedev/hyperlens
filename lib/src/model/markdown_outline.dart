@@ -5,11 +5,11 @@
 /// 都是纯逻辑 —— 抽出来才能用单测钉住，真机上肉眼很难发现「缩进跳级」
 /// 「当前小节差一条」这类偏差。
 ///
-/// 每条的地址是**标题所在的源码行**（[SourceAddress]）：与位置回执同一个坐标，
+/// 每条的地址是**标题所在的源码行**（[PreviewSourceAddress]）：与位置回执同一个坐标，
 /// 于是「跳到某一节」与「返回时落回读到的位置」走同一条滚动原语
 /// （模板的 `mdScrollToLine`），两套判据不会各算各的。
 ///
-/// 清单的**形状**（[OutlineEntry] / [DocumentOutline]）与 HTML 预览共用，见
+/// 清单的**形状**（[PreviewOutlineEntry] / [PreviewOutline]）与 HTML 预览共用，见
 /// `document_outline.dart`；这里只保留 Markdown 特有的坐标换算。
 library;
 
@@ -24,18 +24,18 @@ export 'document_outline.dart';
 
 /// 一篇 Markdown 文档的章节清单。
 @immutable
-class MarkdownOutline extends DocumentOutline {
-  const MarkdownOutline(super.entries);
+class PreviewMarkdownOutline extends PreviewOutline {
+  const PreviewMarkdownOutline(super.entries);
 
   /// 没有章节：空文档、纯段落、或还没收到清单回执。
-  static const MarkdownOutline empty = MarkdownOutline(<OutlineEntry>[]);
+  static const PreviewMarkdownOutline empty = PreviewMarkdownOutline(<PreviewOutlineEntry>[]);
 
   /// [line] 这一行属于哪一节（清单下标）。
   ///
   /// 用二分：清单是**按行号递增**的（模板顺序扫出来的），长文档里每次滚动都要问一次。
   ///
   /// **首个标题之前算第一节**（与代码大纲同一口径）：`[line] > 0` 且清单非空时至少
-  /// 返回 0。抽屉里一条都不高亮会被读成「我点的那条丢了」—— 高亮的含义是「你现在
+  /// 返回 0。目录里一条都不高亮会被读成「我点的那条丢了」—— 高亮的含义是「你现在
   /// 读到哪」，「在第一节前面的引子里」最接近的表述就是第一节。`[line] <= 0` 才返回 -1。
   int sectionAtLine(int line) {
     if (entries.isEmpty || line <= 0) {
@@ -66,7 +66,7 @@ class MarkdownOutline extends DocumentOutline {
   ///   这一节的正文）；
   /// - 都不挡 ⇒ 交给下一节。
   ///
-  /// **中线**这条与 `CodeOutline.currentForScreen` 同一口径、同一理由：一屏 40+ 行的
+  /// **中线**这条与源码侧大纲同一口径、同一理由：一屏 40+ 行的
   /// 平板上，下一节标题在下半屏露头就交接，会让高亮跑到眼里还没读到的章节
   /// （2026-11-06 MatePad Mini 反馈）。
   int sectionAtViewport(PreviewViewport viewport) {
@@ -96,9 +96,9 @@ class MarkdownOutline extends DocumentOutline {
     return index;
   }
 
-  /// 一条清单项的源码行；不是 [SourceAddress] 时按 0（本清单里不会出现）。
-  static int _lineOf(OutlineEntry entry) =>
-      entry.address is SourceAddress ? (entry.address as SourceAddress).line : 0;
+  /// 一条清单项的源码行；不是 [PreviewSourceAddress] 时按 0（本清单里不会出现）。
+  static int _lineOf(PreviewOutlineEntry entry) =>
+      entry.address is PreviewSourceAddress ? (entry.address as PreviewSourceAddress).line : 0;
 
   /// 解析模板回传的清单载荷（`outline <凭据> <json>` 的后半段）。
   ///
@@ -107,7 +107,7 @@ class MarkdownOutline extends DocumentOutline {
   ///
   /// **单条坏了就丢那一条，不整体失败**：目录缺一行不影响阅读，而这行代码跑在
   /// 「预览是否渲染成功」的路径旁边 —— 抛异常会让人以为整篇白屏。
-  static MarkdownOutline parse(Object? value) {
+  static PreviewMarkdownOutline parse(Object? value) {
     Object? raw = value;
     if (raw is String) {
       try {
@@ -119,7 +119,7 @@ class MarkdownOutline extends DocumentOutline {
     if (raw is! List) {
       return empty;
     }
-    final List<OutlineEntry> entries = <OutlineEntry>[];
+    final List<PreviewOutlineEntry> entries = <PreviewOutlineEntry>[];
     for (final Object? item in raw) {
       if (item is! Map) {
         continue;
@@ -137,10 +137,10 @@ class MarkdownOutline extends DocumentOutline {
         continue;
       }
       final Object? id = item['id'];
-      entries.add(OutlineEntry(
+      entries.add(PreviewOutlineEntry(
         level: lv,
         text: text is String ? text : '',
-        address: SourceAddress(ln),
+        address: PreviewSourceAddress(ln),
         id: id is String ? id : '',
       ));
     }
@@ -148,10 +148,10 @@ class MarkdownOutline extends DocumentOutline {
       return empty;
     }
     // 模板是按文档顺序扫的；万一顺序乱了，二分定位会给出错答案，这里先保证单调
-    entries.sort((OutlineEntry a, OutlineEntry b) =>
-        (a.address as SourceAddress).line.compareTo(
-          (b.address as SourceAddress).line,
+    entries.sort((PreviewOutlineEntry a, PreviewOutlineEntry b) =>
+        (a.address as PreviewSourceAddress).line.compareTo(
+          (b.address as PreviewSourceAddress).line,
         ));
-    return MarkdownOutline(entries);
+    return PreviewMarkdownOutline(entries);
   }
 }

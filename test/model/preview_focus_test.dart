@@ -11,8 +11,8 @@ import 'package:hyperlens/src/model/preview_focus.dart';
 
 /// 预览侧的搜索命中定位（`lib/src/model/preview_focus.dart`）。
 ///
-/// 这一块**在主机上只能测到这里**：`flutter_tester` 里没有 `WebViewPlatform`
-/// （见 `tool/shots_gen.dart` 为什么绕开 `.md`），真正的高亮与滚动只有真机能验。
+/// 这一块**在主机上只能测到这里**：`flutter_tester` 里没有 `WebViewPlatform`，
+/// 真正的高亮与滚动只有真机能验。
 /// 所以下面钉的是另一半：喂给页面的坐标算得对、编码不会把页面弄白、
 /// 以及「为定位开脚本」之前确实把作者的脚本摘掉了。
 void main() {
@@ -294,10 +294,9 @@ void main() {
       expect(stripAuthorScripts(tutorial).contains('after'), isTrue);
     });
 
-    // 真机回归：看图页（`scripts: true`）整份 html 都是我们自己生成的，
-    // 桥脚本就写在里面 —— 一律摘掉的话 `bzZoom` / `say()` 全没了，缩放按钮点了不动、
-    // 横滑与双击也不回报，整屏只剩静态图。所以摘不摘要按「是不是别人的页面」判。
-    test('自有页面（看图）不摘脚本：那份 html 里的脚本就是我们的桥', () {
+    // 自有页面（我们自己生成的 html，桥脚本就写在里面）：一律摘掉的话桥也没了，
+    // 整页只剩静态内容。所以摘不摘要按「是不是别人的页面」判，不按「开没开脚本」判。
+    test('自有页面不摘脚本：那份 html 里的脚本就是我们自己的', () {
       expect(stripsAuthorScripts(ownPage: true), isFalse);
     });
 

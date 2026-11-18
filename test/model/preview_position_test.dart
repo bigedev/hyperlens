@@ -11,18 +11,18 @@ void main() {
     test('源码行：JSON 字符串 / 已解好的 Map 都认', () {
       expect(
         PreviewPosition.tryParse('{"line":12}'),
-        const SourceAddress(12),
+        const PreviewSourceAddress(12),
       );
       expect(
         PreviewPosition.tryParse(<String, Object?>{'line': 3}),
-        const SourceAddress(3),
+        const PreviewSourceAddress(3),
       );
     });
 
     test('DOM 路径：路径优先于行号（HTML 侧的地址）', () {
       expect(
         PreviewPosition.tryParse('{"path":"body>div#main>h2:nth(3)"}'),
-        const DomAddress('body>div#main>h2:nth(3)'),
+        const PreviewDomAddress('body>div#main>h2:nth(3)'),
       );
     });
 
@@ -46,20 +46,20 @@ void main() {
     test('老记忆里带 line 的：换算成源码行（一次性，运行时不再有第三套坐标）', () {
       expect(
         PreviewPosition.tryParse('{"block":12,"offset":0,"scrollY":6789,"line":240}'),
-        const SourceAddress(240),
+        const PreviewSourceAddress(240),
       );
     });
 
     test('toJson ↔ tryParse 往返一致（模板的 payload.restore 就走这条）', () {
-      const PreviewPosition line = SourceAddress(7);
-      const PreviewPosition path = DomAddress('body>p:nth(2)');
+      const PreviewPosition line = PreviewSourceAddress(7);
+      const PreviewPosition path = PreviewDomAddress('body>p:nth(2)');
       expect(PreviewPosition.tryParse(jsonEncode(line.toJson())), line);
       expect(PreviewPosition.tryParse(jsonEncode(path.toJson())), path);
     });
 
     test('top 是第 1 行；HTML 的「从头」是 body', () {
-      expect(PreviewPosition.top, const SourceAddress(1));
-      expect(DomAddress.body.path, 'body');
+      expect(PreviewPosition.top, const PreviewSourceAddress(1));
+      expect(PreviewDomAddress.body.path, 'body');
     });
   });
 
@@ -78,7 +78,7 @@ void main() {
     });
 
     test('不进地址：同一处位置的两帧，屏幕高度变了也不算换位置', () {
-      const PreviewPosition position = SourceAddress(10);
+      const PreviewPosition position = PreviewSourceAddress(10);
       expect(
         PreviewPosition.tryParse('{"line":10,"bottomLine":42}'),
         position,
@@ -145,36 +145,36 @@ void main() {
 
   group('预览 ↔ 源码交接', () {
     test('源码 → Markdown 预览：只带行号', () {
-      final SourceAddress? address = AnchorHandoff.toPreview(
+      final PreviewSourceAddress? address = PreviewAnchorHandoff.toPreview(
         entryPath: 'docs/readme.md',
         codeLine: 42,
       );
-      expect(address, const SourceAddress(42));
+      expect(address, const PreviewSourceAddress(42));
     });
 
     test('源码 → HTML 预览：不动（那条通道的地址是 DOM 路径）', () {
       expect(
-        AnchorHandoff.toPreview(entryPath: 'docs/page.html', codeLine: 42),
+        PreviewAnchorHandoff.toPreview(entryPath: 'docs/page.html', codeLine: 42),
         isNull,
       );
     });
 
     test('源码还没报过行号（0）：不猜', () {
       expect(
-        AnchorHandoff.toPreview(entryPath: 'docs/readme.md', codeLine: 0),
+        PreviewAnchorHandoff.toPreview(entryPath: 'docs/readme.md', codeLine: 0),
         isNull,
       );
     });
 
     test('预览 → 源码：只带行号，偏移交给顶对齐闭环', () {
-      final CodeAnchor? anchor = AnchorHandoff.toCode(previewLine: 7);
+      final PreviewCodeAnchor? anchor = PreviewAnchorHandoff.toCode(previewLine: 7);
       expect(anchor?.line, 7);
       expect(anchor?.offset, 0);
       expect(anchor?.fontSize, 0);
     });
 
     test('预览没算出行号：不猜', () {
-      expect(AnchorHandoff.toCode(previewLine: 0), isNull);
+      expect(PreviewAnchorHandoff.toCode(previewLine: 0), isNull);
     });
   });
 }

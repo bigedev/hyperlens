@@ -2,14 +2,13 @@
 ///
 /// **为什么 HTML 需要单独一套**：Markdown 的地址是源码行，那套坐标建立在
 /// `#content` 的 token 边界上 —— HTML 是作者自己的页面，既没有源码行号，也没有
-/// 「第几块」的结构约定，只能按**节点**记（[DomAddress]，例如
+/// 「第几块」的结构约定，只能按**节点**记（[PreviewDomAddress]，例如
 /// `body>div#main>p:nth(3)`）。
 ///
 /// 旧版这里按像素（`window.scrollY`）记，位置锚点与 Markdown 共用 `PreviewAnchor`
 /// （现为 `PreviewPosition`）。
 /// 那条路在「文件被改过」「窗口尺寸变了」时会把读者扔到与新页面无关的地方，且
-/// 让 Dart 侧多出「这次是不是猜的」分支；现在统一成路径，解析不到就回顶部
-/// （见 `docs/plan/preview-plugin-and-ast-plan.md` §9.2）。
+/// 让 Dart 侧多出「这次是不是猜的」分支；现在统一成路径，解析不到就回顶部。
 ///
 /// **为什么现在允许跑脚本**（与「作者页面不执行脚本」的关系）：那条规矩挡的是
 /// **仓库里的任意 HTML**。这里注入的是我们自己的固定脚本（上报 + 还原），调用方
@@ -27,12 +26,12 @@ import 'dart:convert';
 import '../model/preview_position.dart';
 import '../protocol/hyperlens_bridge.dart';
 
-/// 回执前缀：`scroll <位置 JSON>`。
+/// 回执前缀：`top - <位置 JSON>` —— 与 Markdown **同一条**（见 [HyperlensBridge]）。
 ///
-/// 与 Markdown 的 `top <凭据> <JSON>` **有意不同**：那边带渲染凭据（要丢迟到消息），
-/// HTML 预览每次提交都是整页重载、页面自己就是我们注入的这段，不存在上一页还在报
-/// 的时序问题；少一个字段就少一处可能对不上的地方。
-// 位置回执前缀见 `HyperlensBridge.scrollPrefix`（与模板里的字面量靠测试对齐）。
+/// 差别只在凭据：Markdown 那边带渲染凭据（要丢掉迟到消息），HTML 每次提交都是整页
+/// 重载、页面就是我们注入的这段，不存在「上一页还在报」的时序，所以信封里写 `-`。
+// 位置回执前缀见 `HyperlensBridge.positionPrefix`：与 Markdown 同一条（`top`），
+// 只是这条不带凭据（信封里写 `-`）。
 
 /// 注入页面的脚本：上报节流 + 还原按住 + 路径定位。
 ///
@@ -123,8 +122,7 @@ function hyperLensByPath(path) {
 /* 元素**是否真的看得见**。
    只看 getClientRects() 不够：`<details>` 收起时，里面的内容在 Chromium 里仍然有
    layout box（用的是 content-visibility，不是 display:none），rects 非空却不可见 ——
-   实测（2026-11-18，anchor-probe.html 的折叠小节）就被错收进了章节清单，而抽屉里
-   点了它根本滚不过去。所以再显式查一遍「祖先 details 是否展开」。
+   实测收进章节清单后，点它根本滚不过去。所以再显式查一遍「祖先 details 是否展开」。
    display:none / 零尺寸仍由 rects 挡住。 */
 function hyperLensVisible(el) {
   if (!el || el.getClientRects().length === 0) { return false; }
@@ -166,7 +164,7 @@ function hyperLensTopElement() {
 }
 
 function hyperLensAnchorTop() {
-  /* sec = 现在读到第几节（`-1` = 这页没有标题），供章节抽屉高亮用；路径服务「回到
+  /* sec = 现在读到第几节（`-1` = 这页没有标题），供目录高亮用；路径服务「回到
      同一处」。两者都要：高亮要的是结构位置，还原要的是具体节点。 */
   return { path: hyperLensPathOf(hyperLensTopElement()), sec: hyperLensSectionIndex() };
 }
@@ -174,7 +172,7 @@ function hyperLensAnchorTop() {
 /* ── 章节（h1~h6 + 语义标题）──────────────────────────────────────
    页面自己就是大纲的来源：`<h2>` 就是二级标题，不需要像 Markdown 那样从
    词法里反推。`<title>` 不收（浏览器标签栏上的文档名，不是正文第一节）；
-   不可见的标题（折叠面板 / display:none）也跳过 —— 抽屉里点了滚不过去。
+   不可见的标题（折叠面板 / display:none）也跳过 —— 目录里点了滚不过去。
 
    除标签外还认 ARIA 语义标题（`role="heading"`，层级取 `aria-level`）：有些页面
    用 `<div role="heading" aria-level="2">` 代替 h 标签（组件库、可访问性改造过的
@@ -201,7 +199,7 @@ function hyperLensInvalidateSections() {
 }
 
 /* 标题里再套标题（`<div role="heading"><h3>…</h3></div>`，或组件库把 h 标签包进
-   自己的标题壳里）：只留**外层**。同一个标题进抽屉两次，读者会以为文档写重了；
+   自己的标题壳里）：只留**外层**。同一个标题进目录两次，读者会以为文档写重了；
    而两条的落点相差不到一行，没有一条是错的 —— 留着不如去重。 */
 function hyperLensInsideHeading(el) {
   var node = el.parentElement;
@@ -218,7 +216,7 @@ function hyperLensInsideHeading(el) {
 
 /* 一个标题节点是第几级。
    优先级：h 标签（作者写在标签上的语义最硬）→ `aria-level` → 2（`role="heading"`
-   的规范默认层级）。`aria-level` 允许任意正整数，抽屉只到六级，超出按六级算；
+   的规范默认层级）。`aria-level` 允许任意正整数，清单只到六级，超出按六级算；
    认不出的值退回默认，别让一条坏标记把整条清单的缩进带歪。 */
 function hyperLensSectionLevel(el) {
   var tag = (el.tagName || '').toUpperCase();
@@ -270,10 +268,10 @@ function hyperLensSectionsPost() {
   var json = JSON.stringify(brief);
   if (json === hyperLensSectionsJson) { return; }
   hyperLensSectionsJson = json;
-  hyperLensAnchorPost('outline ' + json);
+  hyperLensAnchorPost('outline - ' + json);
 }
 
-/* ── 语法树骨架（`ast` 回执，见 preview_syntax.dart / 方案 §4.6）────────────
+/* ── 语法树骨架（`ast` 回执，见 preview_syntax.dart）──────────────────────
    浏览器自己的 document 就是最权威、最容错的 HTML 解析器，且与画面天然同一个解析
    结果 —— 没有第二个解析器可以跑偏。
 
@@ -351,15 +349,15 @@ function hyperLensSyntaxPost() {
       truncated: true,
     });
   }
-  hyperLensAnchorPost('ast ' + json);
+  hyperLensAnchorPost('ast - ' + json);
 }
 
 /* 文档尺寸一变就重扫 + 重发清单。
    为什么需要：`<details>` 展开/收起、图片撑开、字体到位都**不会**触发 `load` 或
    `resize`，而它们既改清单（折叠里的标题可见了），也改「读到第几节」的下标 ——
-   旧清单配新下标，抽屉高亮会指到别的条目上。
-   实测（2026-11-18，notes/html/aria-heading-probe.html）：展开折叠后抽屉一直停在
-   7 条，得换个字号触发整页重载才变 8 条；读者看到的正是「展开没反应」。
+   旧清单配新下标，目录高亮会指到别的条目上。
+   实测：展开折叠后清单一直停在 7 条，得换个字号触发整页重载才变 8 条；读者看到的
+   正是「展开没反应」。
    没有 ResizeObserver 的环境退回 load / resize 两条（清单不实时，但不报错）。 */
 var hyperLensResizeTimer = null;
 function hyperLensWatchResize() {
@@ -377,6 +375,35 @@ function hyperLensWatchResize() {
     });
     observer.observe(document.body);
   } catch (e) { /* 观察不上就算了：只是清单改回由 load / resize 更新 */ }
+}
+
+/* 点了链接也回一条 `link`（与 Markdown 模板同一条回执，见 HyperlensBridge）。
+   为什么要拦：HTML 预览不开作者脚本，`<a href>` 一点就是导航请求 —— 调用方那边
+   要么整页被换掉、要么什么都没发生；而「点了链接」这件事在两种文档里应当是同一条
+   消息。页内锚点（`#x`）放行：那是页面自己的滚动，位置通道已经盯着。 */
+function hyperLensAnchorWatchLinks() {
+  if (!document.addEventListener) { return; }
+  document.addEventListener('click', function (event) {
+    var node = event.target;
+    while (node && node.nodeType === 1 &&
+           String(node.tagName).toUpperCase() !== 'A') {
+      node = node.parentElement;
+    }
+    if (!node || node.nodeType !== 1) { return; }
+    var href = node.getAttribute('href') || '';
+    if (href === '' || href.charAt(0) === '#') { return; }
+    event.preventDefault();
+    hyperLensAnchorPost('link ' + encodeURIComponent(href));
+  }, true);
+}
+
+/* 就绪回执：与 Markdown 同一条 `render`，凭据位写 `-`（整页重载没有迟到消息）。
+   读者能看到的差别是「页面真的活过来了」终于有了信号 —— 不注入脚本的 HTML 预览，
+   调用方只能靠内容猜。放在清单扫完之后，顺带报出扫到几节。 */
+function hyperLensAnchorRenderReady() {
+  var count = 0;
+  try { count = hyperLensSections().length; } catch (e) { count = 0; }
+  hyperLensAnchorPost('render - ok（html，' + count + ' 节）');
 }
 
 /* 视口顶端属于哪一节：先取「已经滚过顶线」的最后一个标题，再按与源码视图
@@ -449,7 +476,7 @@ function hyperLensScrollToPath(path) {
 }
 
 function hyperLensAnchorReport() {
-  hyperLensAnchorPost('scroll ' + JSON.stringify(hyperLensAnchorTop()));
+  hyperLensAnchorPost('top - ' + JSON.stringify(hyperLensAnchorTop()));
 }
 
 function hyperLensAnchorSchedule(delay) {
@@ -516,13 +543,19 @@ const String _channelPlaceholder = '__HYPERLENS_CHANNEL__';
 String htmlAnchorScript(
   PreviewPosition? restore, {
   String channelName = HyperlensBridge.channelName,
+  bool hold = true,
 }) {
   HyperlensBridge.checkChannelName(channelName);
   final String json = _jsJson(_restorePayload(restore));
   final String script =
       _anchorJs.replaceAll(_channelPlaceholder, channelName);
+  // 命中定位（HyperlensPage.focus）自己会把页面滚到目标处：这时不能再落位，
+  // 否则两边抢滚动条，读者看到「跳过去又滑走」。
+  final String holdLine = hold ? 'hyperLensAnchorHold($json);\n' : '';
+  final String loadBody = 'hyperLensInvalidateSections(); hyperLensSectionsPost();'
+      '${hold ? ' if (!hyperLensAnchorTouched) { hyperLensAnchorHold($json); }' : ''}';
   return '$script\n'
-      'hyperLensAnchorHold($json);\n'
+      '$holdLine'
       // 清单先发一次（脚本挂在 </body> 前，前面的标题已经解析完），
       // 再在 load / resize 后各补一次：图片撑开布局、旋转屏幕都会改可见性。
       // 这两处同时作废章节缓存 —— 缓存按文档高度判活，重排后必须重扫。
@@ -531,9 +564,10 @@ String htmlAnchorScript(
       'hyperLensSyntaxPost();\n'
       // 之后的高度变化（折叠展开、图片撑开）也要重扫，见 hyperLensWatchResize
       'hyperLensWatchResize();\n'
-      "window.addEventListener('load', function () { "
-      'hyperLensInvalidateSections(); hyperLensSectionsPost(); '
-      'if (!hyperLensAnchorTouched) { hyperLensAnchorHold($json); } });\n'
+      // 链接点击回一条 link；页面活了回一条 render（两种文档同一条回执）
+      'hyperLensAnchorWatchLinks();\n'
+      'hyperLensAnchorRenderReady();\n'
+      "window.addEventListener('load', function () { $loadBody });\n"
       "window.addEventListener('resize', function () { "
       'hyperLensInvalidateSections(); hyperLensAnchorSchedule(250); '
       'setTimeout(hyperLensSectionsPost, 250); }, { passive: true });';
@@ -541,44 +575,9 @@ String htmlAnchorScript(
 
 /// 注入载荷：HTML 只认 `path`；拿到源码行地址（不该发生在 HTML 页上）时按顶部处理。
 Map<String, Object?> _restorePayload(PreviewPosition? restore) {
-  final PreviewPosition target = restore ?? DomAddress.body;
-  return target is DomAddress ? target.toJson() : DomAddress.body.toJson();
+  final PreviewPosition target = restore ?? PreviewDomAddress.body;
+  return target is PreviewDomAddress ? target.toJson() : PreviewDomAddress.body.toJson();
 }
-
-/// 解析一条位置回执：一次解码同时拿到位置与「现在读到第几节」。
-///
-/// 合成一个函数是因为两条信息本来就装在**同一条** `scroll <json>` 里
-/// （顶层 `path` + `sec`，见 [_anchorJs]）；分开解析会把同一个 JSON 解码两遍 ——
-/// 每 250ms 一次的纯浪费，而且两边的容许度容易跑偏。
-///
-/// 不是位置回执、或 JSON 认不出来时返回 null（宁可回到顶部，也不要跳到随机位置）。
-/// `section < 0` 表示这条回执没带 / 这页没有标题；`position == null` 表示旧页面
-/// 只报了像素（那时按「无地址」处理）。
-({PreviewPosition? position, int section})? parseHtmlAnchorWithSection(
-  String message,
-) {
-  if (!message.startsWith(HyperlensBridge.scrollPrefix)) {
-    return null;
-  }
-  final Object? raw;
-  try {
-    raw = jsonDecode(message.substring(HyperlensBridge.scrollPrefix.length));
-  } on FormatException {
-    return null;
-  }
-  int section = -1;
-  if (raw is Map) {
-    final Object? sec = raw['sec'];
-    if (sec is num) {
-      section = sec.toInt();
-    }
-  }
-  return (position: PreviewPosition.tryParse(raw), section: section);
-}
-
-/// 只要位置、不要章节时的便利入口（[parseHtmlAnchorWithSection] 的薄封装）。
-PreviewPosition? parseHtmlAnchorReport(String message) =>
-    parseHtmlAnchorWithSection(message)?.position;
 
 /// `jsonEncode` 的结果放进 JS 是安全的，唯独 `<` 要转义 —— 内联进 `<script>` 时
 /// 它可能被解析成标签（与 `preview_focus.dart` 同一口径）。

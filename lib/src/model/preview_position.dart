@@ -2,8 +2,8 @@
 ///
 /// 两件事分开表达，是这套模型唯一想守住的东西：
 ///
-/// - **地址**（[PreviewPosition]）只有两种：Markdown 的源码行 [SourceAddress]、
-///   HTML 的 DOM 路径 [DomAddress]。它会被持久化、会跨会话、会跨到源码视图。
+/// - **地址**（[PreviewPosition]）只有两种：Markdown 的源码行 [PreviewSourceAddress]、
+///   HTML 的 DOM 路径 [PreviewDomAddress]。它会被持久化、会跨会话、会跨到源码视图。
 /// - **观测量**（[PreviewViewport]）每帧都变，只服务「现在读到第几节」的高亮。
 ///
 /// **为什么不再留「像素兜底」**：旧模型把 `block` / `offset` / `scrollY` 和 `line`
@@ -30,9 +30,9 @@ sealed class PreviewPosition {
   /// **不能省**：同一个 WebView 实例会把上一篇的滚动位置留给下一篇（真机实测
   /// 停在半腰），不显式说一句「回到开头」，新文档就继承旧位置。
   ///
-  /// HTML 没有行号，那一侧的顶部是 [DomAddress.body]；把这条传给 HTML 页面时
+  /// HTML 没有行号，那一侧的顶部是 [PreviewDomAddress.body]；把这条传给 HTML 页面时
   /// `HyperlensCommands.forPosition(..., kind: PreviewSourceKind.html)` 会兜成回顶部。
-  static const PreviewPosition top = SourceAddress(1);
+  static const PreviewPosition top = PreviewSourceAddress(1);
 
   /// 写进模板载荷的形态（`payload.restore`）。
   ///
@@ -42,9 +42,9 @@ sealed class PreviewPosition {
 
   /// 解析一条回执 / 一份旧记忆；认不出来返回 null（调用方按「没有地址」处理）。
   ///
-  /// 兼容旧 JSON：老记忆里 `line` 与 `block` / `offset` / `scrollY` 是平铺的
-  /// （见 `docs/plan/preview-plugin-and-ast-plan.md` §9.2）。有 `line` 就换算成
-  /// [SourceAddress]，只剩像素的（老版 HTML 记忆）直接算「无地址」→ 回顶部。
+  /// 兼容旧 JSON：老存档里 `line` 与 `block` / `offset` / `scrollY` 是平铺在同一个
+  /// 对象里的。有 `line` 就换算成 [PreviewSourceAddress]，只剩像素的（老版 HTML 存档）直接
+  /// 算「无地址」→ 回顶部。
   static PreviewPosition? tryParse(Object? value) {
     Object? raw = value;
     if (raw is String) {
@@ -59,11 +59,11 @@ sealed class PreviewPosition {
     }
     final Object? path = raw['path'];
     if (path is String && path.isNotEmpty) {
-      return DomAddress(path);
+      return PreviewDomAddress(path);
     }
     final Object? line = raw['line'];
     if (line is num && line.toInt() > 0) {
-      return SourceAddress(line.toInt());
+      return PreviewSourceAddress(line.toInt());
     }
     // 只有 block / scrollY 的老记忆：地址丢失，回顶部比落到随机位置好
     return null;
@@ -73,10 +73,10 @@ sealed class PreviewPosition {
 /// Markdown 的地址：**源码行号**（1 起）。
 ///
 /// 只有它同时满足三件事：跨字号重排仍指向同一段、能换算回像素、能交给源码视图
-/// （`CodeAnchor.line`）。所以 Markdown 的持久化位置只有这一个数。
+/// （`PreviewCodeAnchor.line`）。所以 Markdown 的持久化位置只有这一个数。
 @immutable
-final class SourceAddress extends PreviewPosition {
-  const SourceAddress(this.line) : assert(line >= 1, '行号 1 起，没有「第 0 行」');
+final class PreviewSourceAddress extends PreviewPosition {
+  const PreviewSourceAddress(this.line) : assert(line >= 1, '行号 1 起，没有「第 0 行」');
 
   final int line;
 
@@ -84,13 +84,13 @@ final class SourceAddress extends PreviewPosition {
   Map<String, Object?> toJson() => <String, Object?>{'line': line};
 
   @override
-  bool operator ==(Object other) => other is SourceAddress && other.line == line;
+  bool operator ==(Object other) => other is PreviewSourceAddress && other.line == line;
 
   @override
   int get hashCode => line.hashCode;
 
   @override
-  String toString() => 'SourceAddress(line: $line)';
+  String toString() => 'PreviewSourceAddress(line: $line)';
 }
 
 /// HTML 的地址：**DOM 路径**，例如 `body>div#main>h2:nth(3)`。
@@ -99,11 +99,11 @@ final class SourceAddress extends PreviewPosition {
 /// 约定，只能按节点定位。段内 `:nth(k)` 是**同名兄弟里的第 k 个**（1 起），
 /// 有 `id` 时用 `#id`（更稳，作者改结构也不至于全错）。
 @immutable
-final class DomAddress extends PreviewPosition {
-  const DomAddress(this.path);
+final class PreviewDomAddress extends PreviewPosition {
+  const PreviewDomAddress(this.path);
 
   /// 整页的「从头」。
-  static const DomAddress body = DomAddress('body');
+  static const PreviewDomAddress body = PreviewDomAddress('body');
 
   final String path;
 
@@ -111,18 +111,18 @@ final class DomAddress extends PreviewPosition {
   Map<String, Object?> toJson() => <String, Object?>{'path': path};
 
   @override
-  bool operator ==(Object other) => other is DomAddress && other.path == path;
+  bool operator ==(Object other) => other is PreviewDomAddress && other.path == path;
 
   @override
   int get hashCode => path.hashCode;
 
   @override
-  String toString() => 'DomAddress($path)';
+  String toString() => 'PreviewDomAddress($path)';
 }
 
 /// 一帧的**观测量**：视口顶 / 底那一带在源码里的行号。
 ///
-/// 只服务「现在读到第几节」的高亮（中线判据，见 `MarkdownOutline.sectionAtViewport`）。
+/// 只服务「现在读到第几节」的高亮（中线判据，见 `PreviewMarkdownOutline.sectionAtViewport`）。
 /// **不持久化、不写进载荷、不进相等性** —— 它每帧都在变，进了相等性会让「位置没变、
 /// 只是屏幕高度变了」被当成换了一处。
 ///

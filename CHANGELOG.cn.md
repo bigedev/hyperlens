@@ -21,12 +21,13 @@
   认不出的消息。
 - 与预览同一次解析得出的大纲与语法树，位置都落在源码行上。
 - 资产（marked、DOMPurify、KaTeX、mhchem、highlight.js、Mermaid）改由包声明，
-  宿主不再声明同名路径。
-- 对外符号：`MarkdownPage` 是唯一的渲染入口；其余是 `HyperlensAssets`、
+  调用方不再声明同名路径。
+- 对外符号：`HyperlensPage.fromText` 是唯一的渲染入口（Markdown 与 HTML 同一个）；
+  其余是 `HyperlensAssets`、
   `HyperlensBridge`、`HyperlensTheme`、`HyperlensLogger` 与 `HyperlensAssetLoader`
-  （Flutter 侧用 `RootBundleAssetLoader`）。
+  （Flutter 侧用 `HyperlensRootBundleAssetLoader`）。
 - WebView 通道名改为注入，不再写死：Markdown 走模板占位符，HTML 走
-  `htmlAnchorScript(channelName:)`，宿主可以注册自己的名字（两边必须与
+  `htmlAnchorScript(channelName:)`，调用方可以注册自己的名字（两边必须与
   `addJavaScriptChannel` 一致，非法标识符在拼装阶段就抛错）。
 - 增强资产（KaTeX、mhchem、Mermaid）缺失时降级为纯文本，并通过 `HyperlensLogger`
   上报，而不是整页失败。
@@ -36,8 +37,8 @@
 - 深色底上 Mermaid 图表保持完整：桑基图的连线渐变带原先消失，原因是 Mermaid 给每条
   连线写死 `mix-blend-mode: multiply`（该模式只在浅底上成立）；现仅在深色两档把混合
   模式改回 `normal`，浅色与墨屏浅色的观感不变。
-- 阅读位置收成一种地址（破坏性变更）：Markdown 用源码行 `SourceAddress`，HTML 用 DOM 路径
-  `DomAddress`（形如 `body>div#main>p:nth(3)`），另有 `PreviewViewport` 带每帧的视口行号，
+- 阅读位置收成一种地址（破坏性变更）：Markdown 用源码行 `PreviewSourceAddress`，HTML 用 DOM 路径
+  `PreviewDomAddress`（形如 `body>div#main>p:nth(3)`），另有 `PreviewViewport` 带每帧的视口行号，
   只服务章节高亮。`PreviewAnchor`（`block` / `offset` / `scrollY`）已删除，页面只认
   `HyperlensCommands` 那两条滚动原语（`mdScrollToLine` / `hyperLensScrollToPath`）；
   地址解析不出来时回顶部、不再按像素猜。旧记忆仍可读：存过 `line` 的直接用，

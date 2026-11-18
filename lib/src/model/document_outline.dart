@@ -1,8 +1,8 @@
 /// 预览侧「章节清单」的通用模型：一条标题 + 一整个清单。
 ///
 /// **为什么要从 Markdown 里提出来**：HTML 预览也出章节（`<h1>~<h6>`，见
-/// `html_outline.dart`），抽屉、折叠、当前节高亮都是同一套，只有「清单从哪儿来、
-/// 坐标怎么算」不同 —— 那部分留在各自的 [MarkdownOutline] / `HtmlOutline` 里，
+/// `html_outline.dart`），目录、折叠、当前节高亮都是同一套，只有「清单从哪儿来、
+/// 坐标怎么算」不同 —— 那部分留在各自的 [PreviewMarkdownOutline] / `PreviewHtmlOutline` 里，
 /// 这里只放两边共用的形状。
 library;
 
@@ -15,14 +15,14 @@ import 'value_equality.dart';
 
 /// 目录里的一条标题。
 ///
-/// 坐标只有 [address] 一个字段：Markdown 是标题所在源码行（[SourceAddress]），
-/// HTML 是标题节点的 DOM 路径（[DomAddress]）。于是「点目录跳过去」对两种文档是
+/// 坐标只有 [address] 一个字段：Markdown 是标题所在源码行（[PreviewSourceAddress]），
+/// HTML 是标题节点的 DOM 路径（[PreviewDomAddress]）。于是「点目录跳过去」对两种文档是
 /// **同一条代码路径**（`HyperlensCommands.forPosition(entry.address)`）——
 /// 旧模型里那种「Markdown 记块号、HTML 记第几个标题」的同名字段已删除：两个语义
 /// 挤在一个叫 `block` 的字段里，换种文档就错，且错得很安静。
 @immutable
-class OutlineEntry {
-  const OutlineEntry({
+class PreviewOutlineEntry {
+  const PreviewOutlineEntry({
     required this.level,
     required this.text,
     required this.address,
@@ -46,7 +46,7 @@ class OutlineEntry {
 
   @override
   bool operator ==(Object other) =>
-      other is OutlineEntry &&
+      other is PreviewOutlineEntry &&
       other.level == level &&
       other.text == text &&
       other.address == address &&
@@ -56,18 +56,18 @@ class OutlineEntry {
   int get hashCode => Object.hash(level, text, address, id);
 
   @override
-  String toString() => 'OutlineEntry(h$level「$text」@$address)';
+  String toString() => 'PreviewOutlineEntry(h$level「$text」@$address)';
 }
 
 /// 一篇文档的章节清单。
 @immutable
-class DocumentOutline {
-  const DocumentOutline(this.entries);
+class PreviewOutline {
+  const PreviewOutline(this.entries);
 
-  final List<OutlineEntry> entries;
+  final List<PreviewOutlineEntry> entries;
 
   /// 没有章节：空文档、纯段落、或还没收到清单回执。
-  static const DocumentOutline empty = DocumentOutline(<OutlineEntry>[]);
+  static const PreviewOutline empty = PreviewOutline(<PreviewOutlineEntry>[]);
 
   bool get isEmpty => entries.isEmpty;
   bool get isNotEmpty => entries.isNotEmpty;
@@ -78,8 +78,8 @@ class DocumentOutline {
   /// **为什么要它，而不是比对象身份**：模板每渲一次页就回传一份**新**清单 —— 换字号、
   /// 换底色、系统主题切换（应用默认「跟随系统」）都会整页重渲。用 `identical` 判「换没
   /// 换清单」，这些重渲都会被当成「换了一篇」，折叠状态随之清空；读者看到的是「划了
-  /// 一会儿再打开抽屉，折叠没了」。按内容比才对得上本意：内容变了才叫换了清单。
-  bool sameContentAs(DocumentOutline other) {
+  /// 一会儿再打开目录，折叠没了」。按内容比才对得上本意：内容变了才叫换了清单。
+  bool sameContentAs(PreviewOutline other) {
     if (identical(this, other)) {
       return true;
     }
@@ -97,12 +97,12 @@ class DocumentOutline {
   /// 值相等：按清单内容比，且**要同一种清单**（Markdown 与 HTML 的空清单不是一回事）。
   ///
   /// 与 [sameContentAs] 的差别只有类型这一条：那个方法问的是「章节看起来一样吗」，
-  /// 不看来源；这里问的是「还是同一份东西吗」。宿主判「折叠状态要不要清」用前者，
+  /// 不看来源；这里问的是「还是同一份东西吗」。调用方判「折叠状态要不要清」用前者，
   /// 判「要不要重建列表」用这条。
   @override
   bool operator ==(Object other) =>
       other.runtimeType == runtimeType &&
-      other is DocumentOutline &&
+      other is PreviewOutline &&
       sameValues(entries, other.entries);
 
   @override
@@ -115,7 +115,7 @@ class DocumentOutline {
   ///
   /// 不写死 1：很多文档从 `##` 起步（README 常见），按 1 算会让整篇多缩进一层。
   int get baseLevel =>
-      entries.isEmpty ? 1 : entries.map((OutlineEntry e) => e.level).reduce(math.min);
+      entries.isEmpty ? 1 : entries.map((PreviewOutlineEntry e) => e.level).reduce(math.min);
 
   /// 第 [index] 条相对基准层的缩进层数（0 起）；越界按 0。
   ///

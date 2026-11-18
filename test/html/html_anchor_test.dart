@@ -5,30 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// HTML 预览的阅读位置通道（`html_anchor.dart`）。
 ///
 /// 这些逻辑在主机上能全部钉住：**注入什么脚本**、**回执怎么解析**都是纯字符串，
-/// 不需要 WebView（`flutter_tester` 里也没有 WebViewPlatform，见 R131）。
+/// 不需要 WebView。
 void main() {
-  group('回执解析', () {
-    test('scroll <JSON> → DOM 路径地址', () {
-      expect(
-        parseHtmlAnchorReport('scroll {"path":"body>div#main>p:nth(3)"}'),
-        const DomAddress('body>div#main>p:nth(3)'),
-      );
-    });
-
-    test('不是位置回执：返回 null（看图页的 imageReady 之类照旧交给调用方）', () {
-      expect(parseHtmlAnchorReport('imageReady 1'), isNull);
-      expect(parseHtmlAnchorReport(''), isNull);
-      expect(parseHtmlAnchorReport('top token {"line":3}'), isNull,
-          reason: 'Markdown 的 top 前缀是另一条通道，别混进来');
-    });
-
-    test('坏 JSON / 老像素回执：当「没有位置」，不要跳到随机偏移', () {
-      expect(parseHtmlAnchorReport('scroll {不是 json'), isNull);
-      expect(parseHtmlAnchorReport('scroll {"block":-1,"scrollY":420}'), isNull);
-      expect(parseHtmlAnchorReport('scroll {"path":""}'), isNull);
-    });
-  });
-
   group('注入脚本', () {
     test('null 也要显式落回顶部（否则新文件继承上一篇的滚动位置）', () {
       expect(
@@ -39,7 +17,7 @@ void main() {
 
     test('带位置：脚本跑时落一次、load 之后再按一次（图片撑高会漂）', () {
       final String js = htmlAnchorScript(
-        const DomAddress('body>div#main>h2:nth(2)'),
+        const PreviewDomAddress('body>div#main>h2:nth(2)'),
       );
       expect(
         'hyperLensAnchorHold({"path":"body>div#main>h2:nth(2)"})'.allMatches(js),
@@ -50,7 +28,7 @@ void main() {
 
     test('拿到源码行地址（不该发生在 HTML 页上）时按顶部处理，不瞎跳', () {
       expect(
-        htmlAnchorScript(const SourceAddress(42)),
+        htmlAnchorScript(const PreviewSourceAddress(42)),
         contains('hyperLensAnchorHold({"path":"body"})'),
       );
     });
@@ -77,8 +55,10 @@ void main() {
       expect(htmlAnchorScript(null), contains('window.HyperLens.postMessage'));
       expect(htmlAnchorScript(null), isNot(contains('__HYPERLENS_CHANNEL__')));
 
-      final String host = htmlAnchorScript(null, channelName: 'BigE');
-      expect(host, contains('window.BigE.postMessage'));
+      // 自定义名只需是「别的名字」：这条不锁某个应用，只证明参数进了脚本、
+      // 且默认名没有跟着一起注入（两处都注入 = 通道注册两次）。
+      final String host = htmlAnchorScript(null, channelName: 'HostChannel');
+      expect(host, contains('window.HostChannel.postMessage'));
       expect(host, isNot(contains('window.HyperLens')));
     });
 

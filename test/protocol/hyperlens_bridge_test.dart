@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// 提示退出重进」，日志里看不出是拼错了。
 ///
 /// 通道名**不写死**在模板里：模板用的是占位符，实际名字由渲染入口
-/// （`MarkdownPage` → `buildMarkdownHtml`）替换进去 —— 使用方可以改成自己的名字。
+/// （`HyperlensPage` → `buildMarkdownHtml`）替换进去 —— 使用方可以改成自己的名字。
 void main() {
   // 包里只有 Markdown 渲染页；diff 那套模板不在本包（不参与 Markdown 渲染）。
   const String template = 'assets/web/markdown_view.html';
@@ -67,11 +67,20 @@ void main() {
     });
   });
 
-  test('HTML 注入脚本里的前缀也逐字一致', () {
+  test('HTML 注入脚本里的前缀也逐字一致（且凭据位写 noToken）', () {
     final String js = htmlAnchorScript(null, channelName: 'HyperLens');
-    expect(js, contains("'${HyperlensBridge.outlinePrefix}'"));
-    expect(js, contains("'${HyperlensBridge.astPrefix}'"));
-    expect(js, contains("'${HyperlensBridge.scrollPrefix}'"));
+    for (final String prefix in <String>[
+      HyperlensBridge.positionPrefix,
+      HyperlensBridge.outlinePrefix,
+      HyperlensBridge.astPrefix,
+    ]) {
+      expect(
+        js,
+        contains("'$prefix${HyperlensBridge.noToken} '"),
+        reason: 'HTML 的 $prefix 回执没带「无凭据」占位：'
+            '解析侧会把它当成有凭据，载荷被切掉一截',
+      );
+    }
   });
 
   test('默认通道名是合法 JS 标识符（要拼进 window.<name>）', () {
