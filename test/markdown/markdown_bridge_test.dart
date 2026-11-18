@@ -1,5 +1,6 @@
 import 'package:hyperlens/src/markdown/bridge.dart';
 import 'package:hyperlens/src/model/preview_position.dart';
+import 'package:hyperlens/src/model/preview_syntax.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 页面 → Dart 的回执格式（`lib/src/markdown/bridge.dart`）。
@@ -105,6 +106,40 @@ void main() {
     final MarkdownEvent event = MarkdownEvent.parse('anchor 安装');
     event as AnchorScrolled;
     expect(event.target, '安装');
+  });
+
+  group('ast（语法树）', () {
+    test('Markdown：`ast <凭据> <骨架 JSON>`，凭据与树一起交出去', () {
+      final MarkdownEvent event = MarkdownEvent.parse(
+        'ast doc-1:v3 '
+        '[{"type":"heading","line":1,"level":1,"text":"标题"},'
+        '{"type":"code","line":3,"lang":"dart","text":"x"}]',
+      );
+
+      event as SyntaxReported;
+      expect(event.token, 'doc-1:v3');
+      expect(event.tree.kind, PreviewSourceKind.markdown);
+      expect(event.tree.nodes, hasLength(2));
+      expect(event.tree.nodes.first.level, 1);
+    });
+
+    test('HTML：`ast <JSON>` 不带凭据（整页重载，没有迟到消息的问题）', () {
+      final MarkdownEvent event = MarkdownEvent.parse(
+        'ast {"kind":"html","nodes":[{"type":"h2","path":"body>h2:nth(1)"}]}',
+      );
+
+      event as SyntaxReported;
+      expect(event.token, isNull);
+      expect(event.tree.kind, PreviewSourceKind.html);
+      expect(event.tree.nodes.single.path, 'body>h2:nth(1)');
+    });
+
+    test('树坏了也只丢树，不当成未知消息（别让状态条跳字）', () {
+      final MarkdownEvent event = MarkdownEvent.parse('ast doc-1:v3 {不是 json');
+      event as SyntaxReported;
+      expect(event.token, 'doc-1:v3');
+      expect(event.tree.isEmpty, isTrue);
+    });
   });
 
   test('认不出的消息原样带出去（页面与 Dart 版本不同步时别炸）', () {

@@ -38,6 +38,12 @@ The host WebView must be able to load package assets through
 `packages/hyperlens/...`; the asset paths are exposed as constants so nothing in the
 host hard-codes them.
 
+The name passed to `addJavaScriptChannel` must match what the render entry uses:
+`MarkdownPage(channelName:)` for Markdown, `htmlAnchorScript(..., channelName:)` for
+HTML, defaulting to `HyperlensBridge.channelName`. **A mismatch fails silently** — the
+guard in the injected script simply posts nothing, so reading positions and the outline
+stop updating with no error anywhere in the logs.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

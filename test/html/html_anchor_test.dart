@@ -150,8 +150,13 @@ void main() {
       expect(js, contains('function hyperLensWatchResize('));
       expect(js, contains('new ResizeObserver('));
       expect(js, contains('observer.observe(document.body)'));
-      // 注入时就该开始观察（不能等读者先滚一下）
-      expect(js, contains('hyperLensSectionsPost();\nhyperLensWatchResize();'));
+      // 注入时就该开始观察（不能等读者先滚一下）；语法树一篇一次，排在中间
+      expect(
+        js,
+        contains('hyperLensSectionsPost();\n'
+            'hyperLensSyntaxPost();\n'
+            'hyperLensWatchResize();'),
+      );
       // 回调里要先失效缓存，否则 hyperLensSections() 会把旧清单原样返回
       final int at = js.indexOf('function hyperLensWatchResize(');
       final String body = js.substring(at, at + 900);

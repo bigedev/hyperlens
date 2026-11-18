@@ -10,6 +10,10 @@ Unreleased. First extraction from the preview implementation of an editor app.
   heading nested inside another keeps only the outer one.
 - The HTML outline watches the document height (`ResizeObserver`) and re-scans after a
   disclosure panel opens or closes, or an image grows — no page reload needed.
+- New syntax-tree skeleton receipt (`ast`): Markdown reuses the same lexer as the render
+  pass, HTML walks the browser's own `document`; the payload is clipped by node count,
+  depth and byte gates. Dart side exposes `PreviewSyntaxTree` / `PreviewSyntaxNode`
+  (the full tree and host-side panels are still to come).
 - Receipt protocol: render ready, link tapped, position reported, outline reported,
   focus applied, anchor scrolled, unknown message.
 - Source-linked outline and syntax tree built from the same parse.

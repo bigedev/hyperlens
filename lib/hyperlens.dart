@@ -29,6 +29,7 @@ export 'src/model/html_outline.dart';
 export 'src/model/hyperlens_theme.dart';
 export 'src/model/markdown_outline.dart';
 export 'src/model/preview_position.dart';
+export 'src/model/preview_syntax.dart';
 export 'src/model/preview_focus.dart';
 export 'src/protocol/commands.dart';
 export 'src/protocol/hyperlens_bridge.dart';

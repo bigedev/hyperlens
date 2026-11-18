@@ -34,6 +34,11 @@ dependencies:
 宿主的 WebView 需要能通过 `packages/hyperlens/...` 加载包内资产；路径以常量形式
 公开，宿主里不硬编码。
 
+WebView 侧 `addJavaScriptChannel` 用的名字必须与渲染入口一致：Markdown 传
+`MarkdownPage(channelName:)`，HTML 传 `htmlAnchorScript(..., channelName:)`，默认是
+`HyperlensBridge.channelName`。**两边对不上时页面不报错**——脚本里那句守卫只是
+什么都不发，表现是阅读位置与章节抽屉静默不更新，日志里也没有线索。
+
 ## 许可证
 
 MIT —— 见 [LICENSE](LICENSE)。

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../model/markdown_outline.dart';
 import '../model/preview_position.dart';
+import '../model/preview_syntax.dart';
 import '../protocol/hyperlens_bridge.dart';
 
 /// 页面 → Dart 的回执（模板 `markdown_view.html` 里 `HyperLens.postMessage` 的约定）。
@@ -16,6 +17,8 @@ import '../protocol/hyperlens_bridge.dart';
 /// - `link <编码后的 href>` —— 链接被捕获阶段拦下，交给上层判断去外链还是仓内跳转；
 /// - `top <凭据> <位置 JSON>` —— 阅读位置（`line`）与这一帧的观测量（`bottomLine`）；
 /// - `outline <凭据> <清单 JSON>` —— 章节清单（一篇一次）；
+/// - `ast <凭据> <树 JSON>` —— 语法树骨架（Markdown，一篇一次）；HTML 那条没有
+///   凭据，直接是 `ast <树 JSON>`，见 [_splitAst]；
 /// - `focus <凭据> <处数>` —— 搜索命中已高亮并滚到（处数为 0 表示没找到），只记日志；
 /// - `anchor <目标>` —— 页内锚点已由页面自己滚好，只记日志。
 ///
@@ -63,6 +66,16 @@ sealed class MarkdownEvent {
       }
       return OutlineReported(token: token, outline: MarkdownOutline.parse(rest));
     }
+    if (message.startsWith(_astPrefix)) {
+      final (String? token, String? rest) = _splitAst(message);
+      if (rest == null) {
+        return UnknownMessage(message);
+      }
+      return SyntaxReported(
+        token: token,
+        tree: PreviewSyntaxTree.parse(rest),
+      );
+    }
     if (message.startsWith(_focusPrefix)) {
       final (String? token, String? rest) = _splitToken(message, _focusPrefix);
       if (token == null || rest == null) {
@@ -85,6 +98,19 @@ sealed class MarkdownEvent {
     }
   }
 
+  /// 拆 `ast` 回执：Markdown 是 `<凭据> <JSON>`，HTML 那条**没有凭据**
+  /// （整页重载，不存在上一页还在报的时序问题）。
+  ///
+  /// 判据是「空格后第一截能不能直接当 JSON 开头」：凭据形如
+  /// `<序号>:<指纹>`，永远不以 `{` / `[` 开头，所以不会误吞。
+  static (String?, String?) _splitAst(String message) {
+    final String rest = message.substring(_astPrefix.length);
+    if (rest.startsWith('{') || rest.startsWith('[')) {
+      return (null, rest);
+    }
+    return _splitToken(message, _astPrefix);
+  }
+
   /// 把 `<前缀><凭据> <其余>` 拆成两截；格式不对（没有分隔空格）返回两个 null。
   static (String?, String?) _splitToken(String message, String prefix) {
     final String rest = message.substring(prefix.length);
@@ -99,6 +125,7 @@ sealed class MarkdownEvent {
   static const String _linkPrefix = 'link ';
   static const String _topPrefix = 'top ';
   static const String _outlinePrefix = 'outline ';
+  static const String _astPrefix = 'ast ';
   static const String _focusPrefix = 'focus ';
   static const String _anchorPrefix = 'anchor ';
 }
@@ -140,6 +167,18 @@ final class OutlineReported extends MarkdownEvent {
 
   final String token;
   final MarkdownOutline outline;
+}
+
+/// 语法树回执（骨架模式）。
+///
+/// Markdown 带凭据（[token] 非 null），与 `top` / `outline` 同一条规则：换文档时旧
+/// 页面的回执必须被丢弃。HTML 那条没有凭据（[token] 为 null）—— 每次提交都是整页
+/// 重载，不存在「上一页还在报」。
+final class SyntaxReported extends MarkdownEvent {
+  const SyntaxReported({required this.token, required this.tree});
+
+  final String? token;
+  final PreviewSyntaxTree tree;
 }
 
 /// 搜索命中已高亮并滚到；[count] 是全文亮起来的处数（null = 回执读不出数字）。

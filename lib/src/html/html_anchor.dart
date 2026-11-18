@@ -273,6 +273,87 @@ function hyperLensSectionsPost() {
   hyperLensAnchorPost('outline ' + json);
 }
 
+/* ── 语法树骨架（`ast` 回执，见 preview_syntax.dart / 方案 §4.6）────────────
+   浏览器自己的 document 就是最权威、最容错的 HTML 解析器，且与画面天然同一个解析
+   结果 —— 没有第二个解析器可以跑偏。
+
+   口径与章节清单**不同**：这里收的是**结构**（折叠面板里的内容也算），清单只收
+   「读者此刻看得见」的标题。两个问题不同，别拿一份结果喂两处。
+
+   没有行号：作者页面没有可换算的源码行，定位一律靠 path（与阅读位置同坐标）。
+   闸门数值与 Dart 侧 `PreviewSyntaxLimits` 对应，改一处必须改两处。 */
+var kSyntaxMaxNodes = 50000;
+var kSyntaxMaxText = 120;
+var kSyntaxMaxBytes = 2097152;   /* 2 MB：按 UTF-16 长度近似，宁可早降级 */
+var kSyntaxMaxDepth = 8;
+
+function hyperLensSyntaxText(el) {
+  var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+  return text.length > kSyntaxMaxText
+    ? text.slice(0, kSyntaxMaxText) + '…'
+    : text;
+}
+
+function hyperLensSyntaxNode(el, depth, budget) {
+  budget.count += 1;
+  var tag = (el.tagName || '').toUpperCase();
+  var node = { type: tag.toLowerCase(), path: hyperLensPathOf(el) };
+  if (tag.length === 2 && tag.charAt(0) === 'H') {
+    var level = parseInt(tag.charAt(1), 10);
+    if (level >= 1 && level <= 6) { node.level = level; }
+  }
+  var text = hyperLensSyntaxText(el);
+  if (text) { node.text = text; }
+  var kids = [];
+  if (depth + 1 < kSyntaxMaxDepth) {
+    var children = el.children || [];
+    for (var i = 0; i < children.length; i++) {
+      if (budget.count >= kSyntaxMaxNodes) { budget.cut = true; break; }
+      if (hyperLensSyntaxSkip(children[i])) { continue; }
+      kids.push(hyperLensSyntaxNode(children[i], depth + 1, budget));
+    }
+  } else if ((el.children || []).length > 0) {
+    budget.cut = true;   /* 深度闸门：还有子节点但不再下钻 */
+  }
+  if (kids.length > 0) { node.children = kids; }
+  return node;
+}
+
+/* 脚本与样式对结构面板没有意义，读它们的 textContent 还会把整段 JS 塞进载荷 */
+function hyperLensSyntaxSkip(el) {
+  var tag = (el.tagName || '').toUpperCase();
+  return tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT';
+}
+
+function hyperLensSyntaxPost() {
+  if (!document.body) { return; }
+  var budget = { count: 0, cut: false };
+  var nodes = [];
+  var kids = document.body.children || [];
+  for (var i = 0; i < kids.length; i++) {
+    if (budget.count >= kSyntaxMaxNodes) { budget.cut = true; break; }
+    if (hyperLensSyntaxSkip(kids[i])) { continue; }
+    nodes.push(hyperLensSyntaxNode(kids[i], 0, budget));
+  }
+  var tree = {
+    kind: 'html',
+    version: 1,
+    nodeCount: budget.count,
+    truncated: budget.cut,
+    nodes: nodes,
+  };
+  var json = JSON.stringify(tree);
+  if (json.length > kSyntaxMaxBytes) {
+    json = JSON.stringify({
+      kind: 'html',
+      version: 1,
+      nodeCount: budget.count,
+      truncated: true,
+    });
+  }
+  hyperLensAnchorPost('ast ' + json);
+}
+
 /* 文档尺寸一变就重扫 + 重发清单。
    为什么需要：`<details>` 展开/收起、图片撑开、字体到位都**不会**触发 `load` 或
    `resize`，而它们既改清单（折叠里的标题可见了），也改「读到第几节」的下标 ——
@@ -446,6 +527,8 @@ String htmlAnchorScript(
       // 再在 load / resize 后各补一次：图片撑开布局、旋转屏幕都会改可见性。
       // 这两处同时作废章节缓存 —— 缓存按文档高度判活，重排后必须重扫。
       'hyperLensSectionsPost();\n'
+      // 语法树骨架：一篇一次（结构由 DOM 决定，折叠不改结构，所以不跟高度重发）
+      'hyperLensSyntaxPost();\n'
       // 之后的高度变化（折叠展开、图片撑开）也要重扫，见 hyperLensWatchResize
       'hyperLensWatchResize();\n'
       "window.addEventListener('load', function () { "
