@@ -88,9 +88,9 @@ link resolution). The main entry keeps just what "using this package" needs.
 
 ## Example
 
-[`example/`](example/) is a runnable demo — one file, `lib/main.dart` — that walks the
-whole path: render → receipts → outline jump → position restore. `flutter run` it on
-android / ios / macos.
+[`example/`](example/) is a runnable demo: `lib/main.dart` walks the whole path —
+render → receipts → outline jump → position restore — with the surrounding chrome in
+`lib/src/`. `flutter run` it on android / ios / macos.
 
 ## License
 

@@ -15,7 +15,7 @@ dependencies:
     path: ../
   # 宿主侧唯一的平台依赖。官方的 webview_flutter 只实现 android / ios / macos，
   # 桌面另外两平台（windows / linux）没有官方实现 —— 示例在那边降级成「看载荷」，
-  # 见 lib/main.dart 里的 _hasWebView。
+  # 见 lib/src/platform_fallback.dart 里的 hasWebViewPlatform。
   webview_flutter: ^4.13.0
 
 dev_dependencies:

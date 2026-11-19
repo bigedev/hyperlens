@@ -14,8 +14,17 @@
 /// 5. **语法树**：首屏来骨架（`ast` 回执），点「语法树」再用
 ///    `HyperlensCommands.requestSyntaxAst()` 拉完整树。
 ///
-/// 示例文档都写成**两段**：第一段英文、第二段中文，方便对照排版差异；Markdown 那份
-/// 还带了公式（KaTeX）与图表（Mermaid）—— 这两样由包里按内容自动门控，调用方不用开关。
+/// 这五步全在本文件里，其余都是外壳 —— 示例只有一屏，代码按职责分开：
+///
+/// | 文件 | 干什么 |
+/// | --- | --- |
+/// | `main.dart`（本文件） | 入口 + 渲染流水线：提交、回执分发、位置语义 |
+/// | `src/demo_documents.dart` | 两份演示文档（Markdown / HTML） |
+/// | `src/preview_toolbar.dart` | 文档档位、主题档位 |
+/// | `src/outline_drawer.dart` | 目录抽屉 |
+/// | `src/status_bar.dart` | 页脚两行（此刻在哪 / 上次读到哪） |
+/// | `src/syntax_sheet.dart` | 语法树弹层 |
+/// | `src/platform_fallback.dart` | 平台判定 + 无 WebView 平台的载荷视图 |
 ///
 /// 宿主自己负责的部分这里都留着：WebView 生命周期、页面外壳、目录 UI —— 包不碰 UI。
 ///
@@ -24,7 +33,6 @@
 /// 那两平台接自己的 WebView 即可（其余代码不用改）。
 library;
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:hyperlens/hyperlens.dart';
 import 'package:hyperlens/root_bundle.dart';
@@ -32,196 +40,14 @@ import 'package:hyperlens/root_bundle.dart';
 // HyperlensAssetLoader 即可，主入口 hyperlens.dart 不依赖 flutter。
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'src/demo_documents.dart';
+import 'src/outline_drawer.dart';
+import 'src/platform_fallback.dart';
+import 'src/preview_toolbar.dart';
+import 'src/status_bar.dart';
+import 'src/syntax_sheet.dart';
+
 void main() => runApp(const _DemoApp());
-
-/// 演示用文档：一份 Markdown、一份 HTML。真实宿主这里换成读文件。
-///
-/// 两份都是「第一段英文、第二段中文」。Markdown 那份还带公式与图表 —— 包里按内容
-/// 自动判要不要内联 KaTeX / Mermaid（`detectMarkdownExtras`），调用方没有开关。
-const String _markdownDemo = r'''
-# hyperlens demo
-
-Part 1 — English
-
-## One address, two documents
-
-- A Markdown address is a **source line**; the page reports the line the reader settled on.
-- An HTML address is a **DOM path** such as `body>article>h2:nth(2)`.
-
-Both live in the same `PreviewPosition`, so "jump to a section" and "come back to where
-I was reading" are one code path.
-
-## Math
-
-Inline math works: $a^2 + b^2 = c^2$, and so does a block:
-
-$$
-\int_{0}^{1} x^2\,\mathrm{d}x = \frac{1}{3}
-$$
-
-## Diagram
-
-```mermaid
-flowchart LR
-  src[source] --> render[render payload]
-  render --> view[your WebView]
-  view -->|receipts| host[your app]
-```
-
-## Receipts
-
-| receipt | payload |
-| --- | --- |
-| `render` | the submitted page is alive |
-| `position` | reading position + viewport |
-| `outline` | section list |
-| `ast` | syntax tree (skeleton first) |
-
-```dart
-final html = await HyperlensPage.fromText(
-  source: text,
-  path: 'demo/a.md',
-).render(assets: const HyperlensRootBundleAssetLoader());
-```
-
-> Link clicks are intercepted as well: try [this section](#receipts) or
-> [pub.dev](https://pub.dev/packages/hyperlens).
-
----
-
-# hyperlens 示例
-
-第二部分 —— 中文
-
-## 一套坐标，两种文档
-
-- Markdown 的地址是**源码行**，滚动停下时页面把行号发回来；
-- HTML 的地址是 **DOM 路径**（`body>article>h2:nth(2)`）。
-
-两种地址放在同一个 `PreviewPosition` 里，所以「跳到某一节」与「返回时落回读到的
-位置」是同一条代码路径。
-
-## 公式
-
-行内公式：$e^{i\pi} + 1 = 0$；块级公式：
-
-$$
-\sum_{k=1}^{n} k = \frac{n(n+1)}{2}
-$$
-
-## 图表
-
-```mermaid
-sequenceDiagram
-  页面->>宿主: render ok
-  宿主->>页面: mdScrollToLine(12)
-  页面->>宿主: position + outline + ast
-```
-
-## 回执
-
-| 回执 | 载荷 |
-| --- | --- |
-| `render` | 这次提交的页面活着 |
-| `position` | 阅读位置 + 视口 |
-| `outline` | 章节清单 |
-| `ast` | 语法树骨架 |
-
-> 侧栏点一条标题试试：那条命令走的是 [HyperlensCommands.forPosition]。
-
-链接也拦下来了：点 [这一段](#回执) 或 [外链](https://pub.dev/packages/hyperlens)。
-''';
-
-/// HTML 那一份走的是「看别人的页面」：样式、图表、公式都由作者自己带。
-///
-/// 公式这里用 MathML（浏览器原生支持），因为 HTML 预览**不注入** KaTeX —— 那是
-/// Markdown 那份才有的增强；作者要公式就自己带渲染器或 MathML。
-const String _htmlDemo = r'''
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>hyperlens demo</title>
-  <style>
-    body { font-family: Georgia, serif; max-width: 40em; margin: 2em auto; padding: 0 1em; }
-    h1 { border-bottom: 2px solid currentColor; padding-bottom: .3em; }
-    .note { padding: .6em .8em; border-left: 3px solid #888; }
-    svg { display: block; margin: 1em 0; }
-    math { font-size: 1.15em; }
-  </style>
-</head>
-<body>
-  <h1>HTML preview</h1>
-  <p>Part 1 — English. Author styles are kept as written: this side is "look at someone
-     else's page", not "re-typeset it for them".</p>
-
-  <h2>A chart, drawn by the author</h2>
-  <p>Scripts are stripped, so the picture has to be markup — here it is inline SVG:</p>
-  <svg width="300" height="110" viewBox="0 0 300 110" role="img" aria-label="bar chart">
-    <line x1="10" y1="95" x2="290" y2="95" stroke="#888" stroke-width="1"></line>
-    <rect x="30"  y="55" width="40" height="40" fill="#3b6ea5"></rect>
-    <rect x="100" y="35" width="40" height="60" fill="#5b8fc4"></rect>
-    <rect x="170" y="15" width="40" height="80" fill="#7fb0dd"></rect>
-    <rect x="240" y="70" width="40" height="25" fill="#a9cbe8"></rect>
-    <text x="50"  y="108" font-size="10" text-anchor="middle" fill="#555">render</text>
-    <text x="120" y="108" font-size="10" text-anchor="middle" fill="#555">position</text>
-    <text x="190" y="108" font-size="10" text-anchor="middle" fill="#555">outline</text>
-    <text x="260" y="108" font-size="10" text-anchor="middle" fill="#555">ast</text>
-  </svg>
-
-  <h2>Math, brought by the author</h2>
-  <p>No KaTeX is injected into an HTML page — MathML is the built-in way:</p>
-  <math display="block">
-    <mi>x</mi><mo>=</mo>
-    <mfrac>
-      <mrow><mo>−</mo><mi>b</mi><mo>±</mo>
-        <msqrt><mrow><msup><mi>b</mi><mn>2</mn></msup><mo>−</mo><mn>4</mn><mi>a</mi><mi>c</mi></mrow></msqrt>
-      </mrow>
-      <mrow><mn>2</mn><mi>a</mi></mrow>
-    </mfrac>
-  </math>
-
-  <h2>Scripts</h2>
-  <p class="note">Author scripts are stripped by default: rendering only opens the door for
-     our own bridge, so positions and the outline stay in sync.</p>
-  <p><a href="https://pub.dev/packages/hyperlens">pub.dev</a></p>
-
-  <hr>
-
-  <h1>HTML 预览</h1>
-  <p>第二部分 —— 中文。作者写的样式原样保留 —— 这一档讲的是「看别人的页面」，
-     不是替它定排版。</p>
-
-  <h2>只有一条命令</h2>
-  <p>章节从 <code>h1~h6</code>（含 ARIA 标题）扫出来，地址是 DOM 路径，
-     所以目录点击与 Markdown 走同一个位置类型。</p>
-
-  <h3>回执</h3>
-  <ol>
-    <li><code>render</code>：这次提交的页面活着；</li>
-    <li><code>position</code>：阅读位置 + 视口；</li>
-    <li><code>outline</code>：章节清单；</li>
-    <li><code>ast</code>：语法树（先来骨架）。</li>
-  </ol>
-
-  <h2>表格</h2>
-  <table border="0" cellpadding="6" style="border-collapse: collapse;">
-    <tr><th align="left">回执</th><th align="left">载荷</th></tr>
-    <tr><td><code>render</code></td><td>这次提交的页面活着</td></tr>
-    <tr><td><code>position</code></td><td>阅读位置 + 视口</td></tr>
-    <tr><td><code>outline</code></td><td>章节清单</td></tr>
-  </table>
-</body>
-</html>
-''';
-
-/// 官方 `webview_flutter` 覆盖的平台；其余平台降级成展示载荷。
-bool get _hasWebView =>
-    !kIsWeb &&
-    switch (defaultTargetPlatform) {
-      TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS => true,
-      _ => false,
-    };
 
 class _DemoApp extends StatelessWidget {
   const _DemoApp();
@@ -242,17 +68,8 @@ class _DemoPage extends StatefulWidget {
   State<_DemoPage> createState() => _DemoPageState();
 }
 
+/// 渲染流水线本体：一次 [_render] 就是一次提交，回执在 [_onMessage] 分发。
 class _DemoPageState extends State<_DemoPage> {
-  /// 三档主题：颜色与字号都由调用方给，包里只有「不给也能看」的预设。
-  static const List<(String, HyperlensTheme)> _themes = <(String, HyperlensTheme)>[
-    ('Light', HyperlensTheme.light),
-    ('Dark', HyperlensTheme.dark),
-    ('Ink', HyperlensTheme.ink),
-  ];
-
-  /// 没有 WebView 的平台最多摆这么多字符（载荷可能有几 MB，见 [_body]）。
-  static const int _maxPreviewChars = 20000;
-
   /// 平台有 WebView 实现时才创建：官方包在 windows / linux 上**构造**
   /// `WebViewController()` 就会抛错（平台实现没注册），所以这里必须按平台判空。
   WebViewController? _controller;
@@ -267,7 +84,8 @@ class _DemoPageState extends State<_DemoPage> {
   ///
   /// 用 [ValueNotifier] 而不是 `setState`：位置回执**每滚停一次**就来一条，整页重建
   /// 没有意义（`_outline` 那类真会影响布局的才用 setState）。
-  final ValueNotifier<String> _status = ValueNotifier<String>('Ready to render…');
+  final ValueNotifier<String> _status =
+      ValueNotifier<String>('Ready to render…');
 
   /// 章节清单：`outline` 回执给的那份。
   PreviewOutline _outline = PreviewOutline.empty;
@@ -323,11 +141,11 @@ class _DemoPageState extends State<_DemoPage> {
           ? token == _token
           : token == null;
 
-
   /// 语法树：首屏只来骨架，点「语法树」时按需拉完整树。
   ///
   /// 用 [ValueNotifier] 而不是 setState：完整树可能在弹层已经打开之后才到。
-  final ValueNotifier<PreviewSyntaxTree?> _syntax = ValueNotifier<PreviewSyntaxTree?>(null);
+  final ValueNotifier<PreviewSyntaxTree?> _syntax =
+      ValueNotifier<PreviewSyntaxTree?>(null);
 
   @override
   void dispose() {
@@ -339,7 +157,7 @@ class _DemoPageState extends State<_DemoPage> {
   @override
   void initState() {
     super.initState();
-    if (_hasWebView) {
+    if (hasWebViewPlatform) {
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(
@@ -369,9 +187,9 @@ class _DemoPageState extends State<_DemoPage> {
     final PreviewPosition? target = restore ?? _live[_kind];
     final String token = 'c${++_commitSeq}';
     final HyperlensPage page = HyperlensPage.fromText(
-      source: markdown ? _markdownDemo : _htmlDemo,
+      source: demoDocument(_kind),
       kind: _kind,
-      theme: _themes[_themeIndex].$2,
+      theme: demoThemes[_themeIndex].theme,
       // 落位：Markdown 用源码行、HTML 用 DOM 路径，各记各的。
       restore: target,
       // 凭据：页面会把它带回来，用来丢掉上一页的迟到回执（见 _fromLivePage）。
@@ -403,7 +221,7 @@ class _DemoPageState extends State<_DemoPage> {
       _outline = PreviewOutline.empty;
     });
     _status.value = 'Committed (${html.length} chars): '
-        '${markdown ? 'Markdown' : 'HTML'} / ${_themes[_themeIndex].$1}'
+        '${markdown ? 'Markdown' : 'HTML'} / ${demoThemes[_themeIndex].label}'
         '${target == null ? '' : ', landed on $target'}';
     try {
       await _loadPayload();
@@ -430,6 +248,27 @@ class _DemoPageState extends State<_DemoPage> {
   /// 标记「接下来一小段是程序性移动」。
   void _markProgrammatic([int milliseconds = 1600]) {
     _programmaticUntil = DateTime.now().add(Duration(milliseconds: milliseconds));
+  }
+
+  /// 换文档：离开这份之前先定格，切回来时落回这里。
+  void _switchKind(PreviewSourceKind next) {
+    final PreviewPosition? here = _live[_kind];
+    setState(() {
+      if (here != null) {
+        _bookmark[_kind] = here;
+      }
+      // 档位立刻跟手：新载荷要等 render 回来，选中态不该跟着等。
+      _kind = next;
+      _outline = PreviewOutline.empty;
+    });
+    // 新文档落回它自己上次离开的地方（没读过就是开头）。
+    _render();
+  }
+
+  /// 换主题：重画文档，落回此刻的位置（换主题不该把人扔回开头）。
+  void _switchTheme(int index) {
+    setState(() => _themeIndex = index);
+    _render();
   }
 
   /// 回到顶部：读者的阅读**到此为止** —— 先把此刻的位置定格成「上次位置」，
@@ -502,7 +341,9 @@ class _DemoPageState extends State<_DemoPage> {
 
       case PreviewLinkTapped(:final String href):
         _status.value = 'Link tapped: $href';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Link handed to the host: $href')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Link handed to the host: $href')),
+        );
 
       case PreviewSyntaxReported(:final String? token, :final PreviewSyntaxTree tree):
         if (!_fromLivePage(token)) {
@@ -562,8 +403,17 @@ class _DemoPageState extends State<_DemoPage> {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (BuildContext context) => _SyntaxSheet(syntax: _syntax),
+      builder: (BuildContext context) => SyntaxSheet(syntax: _syntax),
     );
+  }
+
+  /// 正文区：有 WebView 就显示页面，没有就把载荷摆出来。
+  Widget _view() {
+    final WebViewController? controller = _controller;
+    if (controller != null) {
+      return WebViewWidget(controller: controller);
+    }
+    return PayloadFallbackView(payload: _payload);
   }
 
   @override
@@ -599,307 +449,20 @@ class _DemoPageState extends State<_DemoPage> {
           ),
         ],
       ),
-      endDrawer: Drawer(
-        child: SafeArea(
-          child: _outline.isEmpty
-              ? const Center(child: Text('No outline yet'))
-              : ListView(
-                  children: [
-                    for (final PreviewOutlineEntry entry in _outline.entries)
-                      ListTile(
-                        dense: true,
-                        // 层级只影响缩进：清单本身不折叠，折叠是宿主的 UI 选择。
-                        contentPadding: EdgeInsets.only(
-                          left: 16 + (entry.level - 1) * 16.0,
-                          right: 16,
-                        ),
-                        title: Text(entry.text, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text('${entry.address}'),
-                        onTap: () => _jumpTo(entry),
-                      ),
-                  ],
-                ),
-        ),
-      ),
+      endDrawer: OutlineDrawer(outline: _outline, onTap: _jumpTo),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SegmentedButton<PreviewSourceKind>(
-                  segments: const [
-                    ButtonSegment(value: PreviewSourceKind.markdown, label: Text('Markdown')),
-                    ButtonSegment(value: PreviewSourceKind.html, label: Text('HTML')),
-                  ],
-                  selected: <PreviewSourceKind>{_kind},
-                  onSelectionChanged: (Set<PreviewSourceKind> value) {
-                    final PreviewSourceKind next = value.first;
-                    if (next == _kind) {
-                      return;
-                    }
-                    // 离开这份文档：把读到的位置定格下来，切回来时落回这里。
-                    final PreviewPosition? here = _live[_kind];
-                    setState(() {
-                      if (here != null) {
-                        _bookmark[_kind] = here;
-                      }
-                      // 档位立刻跟手：新载荷要等 render 回来，选中态不该跟着等。
-                      _kind = next;
-                      _outline = PreviewOutline.empty;
-                    });
-                    // 新文档落回它自己上次离开的地方（没读过就是开头）。
-                    _render();
-                  },
-                ),
-                SegmentedButton<int>(
-                  segments: [
-                    for (int i = 0; i < _themes.length; i++)
-                      ButtonSegment(value: i, label: Text(_themes[i].$1)),
-                  ],
-                  selected: <int>{_themeIndex},
-                  onSelectionChanged: (Set<int> value) {
-                    setState(() => _themeIndex = value.first);
-                    _render();
-                  },
-                ),
-              ],
-            ),
+          PreviewToolbar(
+            kind: _kind,
+            themeIndex: _themeIndex,
+            onKindChanged: _switchKind,
+            onThemeChanged: _switchTheme,
           ),
-          Expanded(child: _body()),
-          Container(
-            width: double.infinity,
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            // 两个值并排摆：读者滚来滚去只会让上面那行变，下面那行只在离开时定格。
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // 只订阅那行字：位置回执每滚停一次就来一条，没必要重建整页。
-                ValueListenableBuilder<String>(
-                  valueListenable: _status,
-                  builder: (BuildContext context, String status, Widget? _) => Text(
-                    status,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text(
-                  'Last position: ${_bookmark[_kind] ?? 'none (never left)'}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
+          Expanded(child: _view()),
+          // 两个值并排摆：读者滚来滚去只会让上面那行变，下面那行只在离开时定格。
+          PreviewStatusBar(status: _status, bookmark: _bookmark[_kind]),
         ],
       ),
     );
-  }
-
-  Widget _body() {
-    final WebViewController? controller = _controller;
-    if (controller != null) {
-      return WebViewWidget(controller: controller);
-    }
-    // windows / linux：官方 webview_flutter 没有实现。库本身与平台无关，
-    // 这里只把「拿到的载荷」摆出来，接口形状与前三个平台完全一样。
-    //
-    // 只摆开头：文档里有公式或 mermaid 时载荷是 4 MB 上下（Mermaid 一家就 3.5 MB），
-    // 整份塞进一个 Text 要一次布局几百万字符 —— 那两平台上会直接卡死。
-    final String shown = _payload.length <= _maxPreviewChars
-        ? _payload
-        : '${_payload.substring(0, _maxPreviewChars)}\n'
-            '… (${_payload.length} chars total)';
-    return SelectionArea(
-      child: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          Text(
-            'No official WebView implementation on this platform — below is what\n'
-            'HyperlensPage.render() produced. Wire your own WebView for the same\n'
-            'result as on android / ios / macos.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            shown,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 语法树弹层：节点按层级摊平，一行一个。
-///
-/// 绑的是 [ValueNotifier]：点开弹层时才发出的「要完整树」命令，回执往往在弹层
-/// 已经建好之后才到 —— 用 [ValueListenableBuilder] 才能就地刷新。
-class _SyntaxSheet extends StatelessWidget {
-  const _SyntaxSheet({required this.syntax});
-
-  final ValueNotifier<PreviewSyntaxTree?> syntax;
-
-  /// 一次最多列这么多行：完整树可以有几千个节点，弹层不是给「逐条读完」用的。
-  static const int _maxRows = 300;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return ValueListenableBuilder<PreviewSyntaxTree?>(
-      valueListenable: syntax,
-      builder: (BuildContext context, PreviewSyntaxTree? tree, Widget? _) {
-        final List<(int, PreviewSyntaxNode)> rows =
-            _flatten(tree?.nodes ?? const <PreviewSyntaxNode>[]);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  tree == null
-                      ? "No syntax tree yet: it arrives with the page's ast receipt"
-                      : '${tree.kind.wireName}: ${tree.count} nodes'
-                          '${tree.truncated ? ' (truncated)' : ''}'
-                          '${tree.issues.isEmpty ? '' : ', ${tree.issues.length} issue${tree.issues.length == 1 ? '' : 's'}'}',
-                  style: theme.textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'The first one is the skeleton; this is the full tree pulled by '
-                  'HyperlensCommands.requestSyntaxAst().',
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 8),
-                Flexible(
-                  child: rows.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: Text('No nodes')),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: rows.length > _maxRows ? _maxRows : rows.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            final (int depth, PreviewSyntaxNode node) = rows[index];
-                            return _row(theme, depth, node);
-                          },
-                        ),
-                ),
-                if (rows.length > _maxRows)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      // 行数不写「of N」：摊平有上限（见 _flatten），那个 N 是截断后的
-                      // 行数，说成总数会让人以为树被吃掉了 —— 真值在标题的节点数里。
-                      '(showing first $_maxRows rows — the tree has ${tree?.count ?? 0} nodes)',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 一行一个节点：地址在前（等宽、次要色），文本在后。
-  ///
-  /// 两段塞进**同一个** `Text` 而不是 Row 的两个子项：地址一栏在 HTML 里是
-  /// `body>math>:nth(1)>mfrac>:nth(1)>…` 这种长 DOM 路径，占固定比例会把文本栏压窄，
-  /// 不占比例又会直接撑破整行（就是那条黄黑条纹）。合成一段后省略发生在行尾，
-  /// 短地址也不会白占宽度。
-  Widget _row(ThemeData theme, int depth, PreviewSyntaxNode node) {
-    final String where = node.line == null
-        ? (node.path ?? '')
-        : (node.endLine == null || node.endLine == node.line
-            ? 'L${node.line}'
-            : 'L${node.line}-${node.endLine}');
-    final String label = <String>[
-      node.type,
-      if (node.level > 0) 'h${node.level}',
-      if (node.lang != null) node.lang!,
-      if (where.isNotEmpty) _tail(where),
-    ].join('  ');
-    final TextStyle? body = theme.textTheme.bodySmall;
-    return Padding(
-      // 缩进按层数无限长的话，MathML 那种十几层嵌套会让整行没有可用宽度。
-      padding: EdgeInsets.only(
-        left: (depth > _maxIndent ? _maxIndent : depth) * 10.0,
-        top: 1,
-        bottom: 1,
-      ),
-      child: Text.rich(
-        TextSpan(
-          children: <InlineSpan>[
-            TextSpan(
-              text: '$label  ',
-              style: body?.copyWith(
-                fontFamily: 'monospace',
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            TextSpan(text: node.text, style: body),
-          ],
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
-  /// 最多缩进这么多层：再深的嵌套靠「地址里的路径」表达，不靠空白。
-  static const int _maxIndent = 8;
-
-  /// 长地址只留尾巴（`…>mrow:nth(1)>mi:nth(1)`）。
-  ///
-  /// HTML 的地址是 DOM 路径，深层节点前半段几十行完全一样；原样显示会把这一行的
-  /// 节点文本挤成省略号 —— 树的意义正好丢在最深的那几层。Markdown 的 `L42` 够短，
-  /// 原样返回。
-  static String _tail(String address) {
-    // 放得下就原样（`body>svg:nth(1)>line:nth(1)` 这类浅层地址不该被动），
-    // 放不下才收到尾巴，把宽度留给节点文本。
-    const int full = 28;
-    const int keep = 20;
-    if (address.length <= full) {
-      return address;
-    }
-    String tail = address.substring(address.length - keep);
-    // 从中间截会切在 `>` 上：往后挪到下一段开头，别留半截标签名。
-    final int cut = tail.indexOf('>');
-    if (cut >= 0 && cut + 1 < tail.length) {
-      tail = tail.substring(cut + 1);
-    }
-    return '…>$tail';
-  }
-
-  /// 深度优先摊平：(层级, 节点)。
-  static List<(int, PreviewSyntaxNode)> _flatten(
-    List<PreviewSyntaxNode> nodes, [
-    int depth = 0,
-  ]) {
-    final List<(int, PreviewSyntaxNode)> out = <(int, PreviewSyntaxNode)>[];
-    for (final PreviewSyntaxNode node in nodes) {
-      out.add((depth, node));
-      if (node.children.isNotEmpty) {
-        // 超过 _maxRows 就不再往下走：完整树可能有几千个节点，摊完只为显示 300 行不值。
-        if (out.length >= _maxRows * 4) {
-          return out;
-        }
-        out.addAll(_flatten(node.children, depth + 1));
-      }
-    }
-    return out;
   }
 }

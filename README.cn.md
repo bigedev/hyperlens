@@ -82,8 +82,9 @@ await controller.runJavaScript(
 
 ## 示例
 
-[`example/`](example/) 是可运行的演示（单文件 `lib/main.dart`）：渲染 → 回执 →
-目录跳转 → 位置还原，在 android / ios / macos 上 `flutter run` 直接看。
+[`example/`](example/) 是可运行的演示：`lib/main.dart` 走渲染流水线（渲染 → 回执 →
+目录跳转 → 位置还原），外壳在 `lib/src/`。在 android / ios / macos 上 `flutter run`
+直接看。
 
 ## 许可证
 

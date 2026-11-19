@@ -1,7 +1,8 @@
 # hyperlens 示例
 
-一屏、一个文件（`lib/main.dart`），把宿主侧要走的路整条走一遍：**渲染 → 分发回执 →
-从目录跳转 → 记住并还原阅读位置**。
+一屏，宿主侧要走的路整条都在 `lib/main.dart` 里：**渲染 → 分发回执 → 从目录跳转 →
+记住并还原阅读位置**。其余都是外壳 —— 演示文档、工具栏、抽屉、页脚、语法树弹层
+放在 `lib/src/`，入口文件才读得下去。
 
 [English](https://github.com/bigedev/hyperlens/blob/main/example/README.md) | 简体中文
 
@@ -16,17 +17,29 @@ flutter run          # android / ios / macos
 包本身没有平台代码 —— 这里看到的是**宿主那一半**：一个 `WebViewWidget`、一个
 JavaScript 通道，加几个按钮。
 
+## 文件
+
+| 文件 | 干什么 |
+| --- | --- |
+| `lib/main.dart` | 入口 + 渲染流水线：提交、回执分发、位置语义 |
+| `lib/src/demo_documents.dart` | 两份演示文档（Markdown / HTML） |
+| `lib/src/preview_toolbar.dart` | 文档档位、主题档位 |
+| `lib/src/outline_drawer.dart` | 目录抽屉 |
+| `lib/src/status_bar.dart` | 页脚两行 —— 「此刻在哪」与「上次读到哪」 |
+| `lib/src/syntax_sheet.dart` | 语法树弹层 |
+| `lib/src/platform_fallback.dart` | 哪些平台有 WebView，其余平台的载荷视图 |
+
 ## 值得看的地方
 
-| 步骤 | 在 `lib/main.dart` 里的位置 |
+| 步骤 | 在哪 |
 | --- | --- |
-| 渲染 | `HyperlensPage.fromText(...).render(assets: ...)` —— Markdown 要资产，HTML 不要 |
-| 回执 | `HyperlensBridge.channelName` + `PreviewEvent.parse`（两种文档同一个解析器） |
-| 目录 | `PreviewOutlineReported` → 抽屉；点击执行 `HyperlensCommands.forPosition` |
-| 位置 | 两个值分开：「此刻在哪」（`PreviewPositionReported`，每滚一次就更新）与「上次读到哪」—— 后者只在读者**离开**时定格（回顶部 / 目录跳转 / 切文档），定格的那个才作为 `restore:` 传回去 |
-| 陈旧回执 | 每次提交带一个新 `token:`，对不上的回执丢掉：慢一拍的页面写不进下一份的账 |
-| 语法树 | 先收 `PreviewSyntaxReported` 的骨架；工具栏按钮用 `HyperlensCommands.requestSyntaxAst()` 拉完整树 |
-| 主题 | `HyperlensTheme.light / dark / ink` —— 配色与字号都由调用方给 |
+| 渲染 | `main.dart` → `_render()`：`HyperlensPage.fromText(...).render(assets: ...)` —— Markdown 要资产，HTML 不要 |
+| 回执 | `main.dart` → `_onMessage()`：`HyperlensBridge.channelName` + `PreviewEvent.parse`（两种文档同一个解析器） |
+| 目录 | 清单在 `src/outline_drawer.dart`；点击回到 `main.dart` → `_jumpTo()`，执行 `HyperlensCommands.forPosition` |
+| 位置 | `main.dart` 里两个字段：「此刻在哪」`_live`（`PreviewPositionReported`，每滚一次就更新）与「上次读到哪」`_bookmark` —— 后者只在读者**离开**时定格（回顶部 / 目录跳转 / 切文档），定格的那个才作为 `restore:` 传回去 |
+| 陈旧回执 | `main.dart` → `_fromLivePage()`：每次提交带一个新 `token:`，对不上的回执丢掉：慢一拍的页面写不进下一份的账 |
+| 语法树 | 先收 `PreviewSyntaxReported` 的骨架；`main.dart` → `_showSyntax()` 用 `HyperlensCommands.requestSyntaxAst()` 拉完整树，弹层在 `src/syntax_sheet.dart` |
+| 主题 | `src/preview_toolbar.dart` → `demoThemes`：`HyperlensTheme.light / dark / ink` —— 配色与字号都由调用方给 |
 
 底部两行，一行是最新回执、一行是定格下来的「上次位置」，不必开调试器就能看到每一步。
 主题开关只重画**文档**：App 外壳保持 Material，因为外壳归宿主。
