@@ -1,6 +1,17 @@
+## 0.1.1
+
+No change to the library itself — this release only tidies what the package ships with.
+
+- The example is split by responsibility: `lib/main.dart` keeps the render pipeline
+  (commit, receipt routing, reading-position semantics), while the sample documents,
+  toolbar, outline drawer, status bar, syntax sheet and platform fallback moved to
+  `lib/src/`.
+- The `description` in `pubspec.yaml` was tightened to the length the pub specification
+  asks for.
+
 ## 0.1.0
 
-Unreleased. First extraction from the preview implementation of an editor app.
+First extraction from the preview implementation of an editor app.
 
 - Markdown rendering payload with line/block markers, safe HTML (DOMPurify), and
   KaTeX / mhchem math.
