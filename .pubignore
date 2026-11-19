@@ -18,6 +18,17 @@ Podfile.lock
 example/build/
 example/.dart_tool/
 
+# 本机配置与杂项：**这几条是兜底**。
+#
+# 它们平时靠「没被 git 跟踪」而不进包（pub 只打包 git 里跟踪的文件），可一旦有人
+# `git add` 了 —— 比如模板生成的 `example/android/local.properties`（里面是
+# `sdk.dir=/Users/<本机路径>`）、IDE 的 `.iml`、macOS 的 `.DS_Store` —— 就会直接
+# 出现在发布包里，且 `.pubignore` 存在时 `.gitignore` 已经不生效，没有第二道闸。
+local.properties
+*.log
+*.iml
+.DS_Store
+
 # 中文文档不进包：pub 只认根目录的 README.md / CHANGELOG.md，
 # 多出一个 CHANGELOG.cn.md 会触发「请把它重命名为 CHANGELOG.md」的 warning，
 # 而我们必须把 warning 当失败。中文版留在仓库里，链接用绝对地址。
