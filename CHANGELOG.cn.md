@@ -43,3 +43,7 @@
   `HyperlensCommands` 那两条滚动原语（`mdScrollToLine` / `hyperLensScrollToPath`）；
   地址解析不出来时回顶部、不再按像素猜。旧记忆仍可读：存过 `line` 的直接用，
   只有像素的按「无地址」回顶部。
+- 写明 `HyperlensTheme` 是宿主判断「页面要不要重载」的唯一定义：渲染结果是快照，
+  底色 / 正文色 / 覆盖层都在加载时拼进 HTML，所以新增档位必须连 `==` / `hashCode`
+  一起加。踩过的坑：墨屏与浅色底色同为 `#ffffff`，只比底色的宿主在「墨屏 → 浅色」
+  时不重载，页面留在墨屏的单色覆盖里，彩色标题全变黑字（详见 `HyperlensTheme` 类注释）。

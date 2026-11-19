@@ -52,3 +52,10 @@ Unreleased. First extraction from the preview implementation of an editor app.
   through `HyperlensCommands` (`mdScrollToLine` / `hyperLensScrollToPath`), and a position
   that cannot be resolved puts the reader back at the top instead of guessing. Saved
   positions still parse: a stored `line` is reused, a pixel-only record falls back to top.
+- Documented that `HyperlensTheme` is the sole definition of "how this page looks" for a
+  host that has to decide whether to reload: the rendered page is a snapshot (background,
+  text colour and overlay layers are baked into the HTML at load time), so a new knob has
+  to be added together with `==` / `hashCode`. The case that bit us: ink and light share
+  the same `#ffffff` background, so a host comparing only the background skipped the
+  reload on "ink → light" and kept the ink monochrome overlay — coloured headings turned
+  black (see the `HyperlensTheme` class docs).

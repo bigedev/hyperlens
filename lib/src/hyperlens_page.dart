@@ -181,6 +181,11 @@ final class HyperlensPage {
       return source;
     }
     // 先样式后脚本：样式不依赖 DOM 是否就绪，脚本要在解析完正文后跑才有东西可扫。
+    //
+    // 这里用到的每个 `theme` 字段都会改变页面长相，而宿主是拿整个 `HyperlensTheme`
+    // 的 `==` 判「要不要整页重载」的（页面是快照，加载后就改不动）。所以往下面这段
+    // CSS 里加新开关时，**同时**把它加成 `HyperlensTheme` 的字段并参与 `==` /
+    // `hashCode`，否则宿主看不出变化，页面会停在旧长相上（见该类注释里的真机案例）。
     final String styled = injectStyleIntoHtml(
       source,
       htmlPreviewCss(
