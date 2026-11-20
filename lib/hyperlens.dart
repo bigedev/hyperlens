@@ -44,3 +44,5 @@ export 'src/model/preview_syntax.dart';
 export 'src/model/preview_focus.dart';
 export 'src/protocol/commands.dart';
 export 'src/protocol/hyperlens_bridge.dart';
+// 链接回执上的地址空间 / 上下文是 [PreviewLinkTapped] 的字段，随主入口出去。
+export 'src/protocol/link_intent.dart';

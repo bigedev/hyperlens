@@ -24,6 +24,7 @@ import '../model/markdown_outline.dart';
 import '../model/preview_position.dart';
 import '../model/preview_syntax.dart';
 import 'hyperlens_bridge.dart';
+import 'link_intent.dart';
 
 /// 一条预览回执。
 sealed class PreviewEvent {
@@ -40,15 +41,20 @@ sealed class PreviewEvent {
       return PreviewRenderReady(token: split.$1, result: split.$2!);
     }
     if (message.startsWith(HyperlensBridge.linkPrefix)) {
-      final String encoded =
-          message.substring(HyperlensBridge.linkPrefix.length);
-      String href = encoded;
-      try {
-        href = Uri.decodeComponent(encoded);
-      } on ArgumentError {
-        // 转义异常时按原样交给上层，上层还会再判一次
+      // 信封两种形态都认（带 / 不带地址空间），判据与解码都在 `link_intent.dart`：
+      // 页面脚本、回执解析、外链表必须同一份，否则漏一处就是「点了没反应」。
+      final ({PreviewLinkSpace? space, String? context, String href})? click =
+          parseLinkReceipt(
+        message.substring(HyperlensBridge.linkPrefix.length),
+      );
+      if (click == null) {
+        return PreviewUnknownMessage(message);
       }
-      return PreviewLinkTapped(href);
+      return PreviewLinkTapped(
+        click.href,
+        space: click.space,
+        context: click.context,
+      );
     }
     if (message.startsWith(HyperlensBridge.positionPrefix)) {
       final (String?, String?) split =
@@ -202,19 +208,31 @@ final class PreviewRenderReady extends PreviewEvent {
 }
 
 /// 用户点了链接（[href] 已解码）。
+///
+/// [space] / [context] 是「这条回执属于哪个页面」（见 [PreviewLinkSpace]）：
+/// 同一次会话里换过文件、翻过章之后，上一页的迟到回执靠这两个字段丢弃。
+/// 页面不知道自己在哪个地址空间时两者都是 null（Markdown 模板就是这样）——
+/// 那种情况下调用方按「当前这一页」处理即可。
 final class PreviewLinkTapped extends PreviewEvent {
-  const PreviewLinkTapped(this.href);
+  const PreviewLinkTapped(this.href, {this.space, this.context});
 
   final String href;
+  final PreviewLinkSpace? space;
+  final String? context;
 
   @override
-  bool operator ==(Object other) => other is PreviewLinkTapped && other.href == href;
+  bool operator ==(Object other) =>
+      other is PreviewLinkTapped &&
+      other.href == href &&
+      other.space == space &&
+      other.context == context;
 
   @override
-  int get hashCode => href.hashCode;
+  int get hashCode => Object.hash(href, space, context);
 
   @override
-  String toString() => 'PreviewLinkTapped($href)';
+  String toString() =>
+      'PreviewLinkTapped($href${space == null ? '' : ', $space/$context'})';
 }
 
 /// 阅读位置回执：**地址**（[position]）与**这一帧的观测量**（[viewport]）分开带。

@@ -4,6 +4,7 @@ import 'package:hyperlens/src/model/preview_position.dart';
 import 'package:hyperlens/src/model/preview_syntax.dart';
 import 'package:hyperlens/src/protocol/events.dart';
 import 'package:hyperlens/src/protocol/hyperlens_bridge.dart';
+import 'package:hyperlens/src/protocol/link_intent.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 页面 → Dart 的回执（`lib/src/protocol/events.dart`）。
@@ -52,6 +53,38 @@ void main() {
       final PreviewEvent event = PreviewEvent.parse('link %zz');
       event as PreviewLinkTapped;
       expect(event.href, '%zz');
+    });
+
+    test('旧式回执不带地址空间：space / context 都是 null', () {
+      final PreviewEvent event = PreviewEvent.parse('link a%2Fb.md');
+      event as PreviewLinkTapped;
+      expect(event.space, isNull);
+      expect(event.context, isNull);
+    });
+
+    test('带地址空间：space 还原、context 解码、href 里的 # 不被切掉', () {
+      final PreviewEvent event = PreviewEvent.parse(
+        'link repo docs%2Fchap2.html chap2.html%23sec2',
+      );
+      event as PreviewLinkTapped;
+      expect(event.space, PreviewLinkSpace.repo);
+      expect(event.context, 'docs/chap2.html');
+      expect(event.href, 'chap2.html#sec2');
+    });
+
+    test('space 名不认识：按旧式整段解（页面与 Dart 版本不同步时别炸）', () {
+      final PreviewEvent event = PreviewEvent.parse('link other a b');
+      event as PreviewLinkTapped;
+      expect(event.space, isNull);
+      expect(event.href, 'other a b');
+    });
+
+    test('空 href 归到 PreviewUnknownMessage，别当成点了空链接', () {
+      expect(
+        PreviewEvent.parse('link repo docs%2Fa.md '),
+        isA<PreviewUnknownMessage>(),
+      );
+      expect(PreviewEvent.parse('link '), isA<PreviewUnknownMessage>());
     });
   });
 

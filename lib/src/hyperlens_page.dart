@@ -11,6 +11,7 @@ import 'model/preview_position.dart';
 import 'model/preview_syntax.dart';
 import 'protocol/focus_script.dart';
 import 'protocol/hyperlens_bridge.dart';
+import 'protocol/link_intent.dart';
 
 /// 渲染一页预览：**包对外的唯一渲染入口**，Markdown 与 HTML 同一个形状。
 ///
@@ -48,6 +49,8 @@ final class HyperlensPage {
     String channelName = HyperlensBridge.channelName,
     bool ownPage = false,
     bool scripts = true,
+    PreviewLinkSpace? linkSpace,
+    String? linkContext,
   }) {
     final PreviewSourceKind resolved = _resolveKind(path: path, kind: kind);
     final PreviewPosition position = restore ??
@@ -64,6 +67,8 @@ final class HyperlensPage {
       restore: position,
       focus: focus,
       channelName: channelName,
+      linkSpace: linkSpace,
+      linkContext: linkContext,
     );
   }
 
@@ -74,6 +79,8 @@ final class HyperlensPage {
     required this.restore,
     required this.focus,
     required this.channelName,
+    required this.linkSpace,
+    required this.linkContext,
   }) : _document = document;
 
   /// 这份文档是哪一类（由 [path] / `kind` 判定，见 `fromText`）。
@@ -95,6 +102,16 @@ final class HyperlensPage {
   ///
   /// 使用方要改的话，WebView 侧 `addJavaScriptChannel` 必须用同一个名字。
   final String channelName;
+
+  /// 这一页属于哪个地址空间（[PreviewLinkSpace]）；null = 页面不知道，链接回执
+  /// 只带 href。
+  ///
+  /// 只对 HTML 生效：Markdown 模板的回执里没有这个字段（那边一页就是一篇文档，
+  /// 换文档靠渲染凭据 `token` 丢弃迟到回执）。
+  final PreviewLinkSpace? linkSpace;
+
+  /// 地址空间里的上下文（`repo` 是仓库相对路径，`book` 是章号）。
+  final String? linkContext;
 
   final _Document _document;
 
@@ -206,6 +223,8 @@ final class HyperlensPage {
         restore,
         channelName: channelName,
         hold: focus == null,
+        linkSpace: linkSpace,
+        linkContext: linkContext,
       ),
     );
     if (focus != null) {

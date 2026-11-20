@@ -49,16 +49,36 @@ void main() {
       );
     });
 
-    test('带锚点 / 查询串：只取路径', () {
+    test('带锚点 / 查询串：路径照旧，锚点随 fragment 交给上层落位', () {
       expect(
         resolve('./app-development/x.md#生命周期'),
         isA<OpenRepoFile>()
-            .having((OpenRepoFile a) => a.relPath, 'relPath', 'app-development/x.md'),
+            .having((OpenRepoFile a) => a.relPath, 'relPath', 'app-development/x.md')
+            .having((OpenRepoFile a) => a.fragment, 'fragment', '生命周期'),
       );
       expect(
         resolve('./app-development/x.md?plain=1'),
         isA<OpenRepoFile>()
-            .having((OpenRepoFile a) => a.relPath, 'relPath', 'app-development/x.md'),
+            .having((OpenRepoFile a) => a.relPath, 'relPath', 'app-development/x.md')
+            .having((OpenRepoFile a) => a.fragment, 'fragment', isNull),
+      );
+    });
+
+    test('片段是百分号转义时解一次（页面里按 id 找才对得上）', () {
+      expect(
+        resolve('./chap2.html#%E9%85%8D%E7%BD%AE'),
+        isA<OpenRepoFile>()
+            .having((OpenRepoFile a) => a.relPath, 'relPath', 'chap2.html')
+            .having((OpenRepoFile a) => a.fragment, 'fragment', '配置'),
+      );
+    });
+
+    test('空的 `#` 不带片段（`a.md#` 与 `a.md` 等价）', () {
+      expect(
+        resolve('./a.md#'),
+        isA<OpenRepoFile>()
+            .having((OpenRepoFile a) => a.relPath, 'relPath', 'a.md')
+            .having((OpenRepoFile a) => a.fragment, 'fragment', isNull),
       );
     });
 

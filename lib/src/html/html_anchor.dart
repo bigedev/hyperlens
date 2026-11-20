@@ -24,6 +24,7 @@ library;
 import '../model/preview_position.dart';
 import '../protocol/hyperlens_bridge.dart';
 import '../protocol/js_literal.dart';
+import '../protocol/link_intent.dart';
 
 /// 回执前缀：`top - <位置 JSON>` —— 与 Markdown **同一条**（见 [HyperlensBridge]）。
 ///
@@ -385,8 +386,10 @@ function hyperLensWatchResize() {
 /* 点了链接也回一条 `link`（与 Markdown 模板同一条回执，见 HyperlensBridge）。
    为什么要拦：HTML 预览不开作者脚本，`<a href>` 一点就是导航请求 —— 调用方那边
    要么整页被换掉、要么什么都没发生；而「点了链接」这件事在两种文档里应当是同一条
-   消息。页内锚点（`#x`）放行：那是页面自己的滚动，位置通道已经盯着。 */
-function hyperLensAnchorWatchLinks() {
+   消息。页内锚点（`#x`）放行：那是页面自己的滚动，位置通道已经盯着。
+   前缀由 [htmlAnchorScript] 按「这一页属于哪个地址空间」拼好传进来：带了它，
+   调用方才能在换过文件 / 翻过章之后认出「这是上一页的迟到回执」。 */
+function hyperLensAnchorWatchLinks(prefix) {
   if (!document.addEventListener) { return; }
   document.addEventListener('click', function (event) {
     var node = event.target;
@@ -398,7 +401,7 @@ function hyperLensAnchorWatchLinks() {
     var href = node.getAttribute('href') || '';
     if (href === '' || href.charAt(0) === '#') { return; }
     event.preventDefault();
-    hyperLensAnchorPost('link ' + encodeURIComponent(href));
+    hyperLensAnchorPost(prefix + encodeURIComponent(href));
   }, true);
 }
 
@@ -545,10 +548,20 @@ const String _channelPlaceholder = '__HYPERLENS_CHANNEL__';
 /// [channelName] 必须与 WebView 侧 `addJavaScriptChannel` 注册的名字逐字一致
 /// （默认 [HyperlensBridge.channelName]）：对不上的表现是脚本静默什么都不发 ——
 /// 页面里那句 `if (window.<name>)` 只是守卫，通道不存在就整条位置链路哑掉。
+///
+/// [linkSpace] / [linkContext] 是「这一页属于哪个地址空间」（见 [PreviewLinkSpace]）：
+/// 给了之后链接回执是 `link <space> <ctx> <href>`，调用方能认出换页之后的迟到回执；
+/// 不给就是旧式的 `link <href>`。
+///
+/// **位置在链接之前上报**：脚本正文里那个「点一下就先报位置」的监听比这里的
+/// `hyperLensAnchorWatchLinks()` 先注册，同一个捕获阶段里按注册顺序执行 ——
+/// 所以调用方收到的是「离开的位置 → 链接」两条，顺序反了会把跳转后的位置压进栈。
 String htmlAnchorScript(
   PreviewPosition? restore, {
   String channelName = HyperlensBridge.channelName,
   bool hold = true,
+  PreviewLinkSpace? linkSpace,
+  String? linkContext,
 }) {
   HyperlensBridge.checkChannelName(channelName);
   final String json = jsJson(_restorePayload(restore));
@@ -559,6 +572,9 @@ String htmlAnchorScript(
   final String holdLine = hold ? 'hyperLensAnchorHold($json);\n' : '';
   final String loadBody = 'hyperLensInvalidateSections(); hyperLensSectionsPost();'
       '${hold ? ' if (!hyperLensAnchorTouched) { hyperLensAnchorHold($json); }' : ''}';
+  final String linkPrefix = jsJson(
+    linkReceiptPrefix(space: linkSpace, context: linkContext),
+  );
   return '$script\n'
       '$holdLine'
       // 清单先发一次（脚本挂在 </body> 前，前面的标题已经解析完），
@@ -570,7 +586,7 @@ String htmlAnchorScript(
       // 之后的高度变化（折叠展开、图片撑开）也要重扫，见 hyperLensWatchResize
       'hyperLensWatchResize();\n'
       // 链接点击回一条 link；页面活了回一条 render（两种文档同一条回执）
-      'hyperLensAnchorWatchLinks();\n'
+      'hyperLensAnchorWatchLinks($linkPrefix);\n'
       'hyperLensAnchorRenderReady();\n'
       "window.addEventListener('load', function () { $loadBody });\n"
       "window.addEventListener('resize', function () { "
