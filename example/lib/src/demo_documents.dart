@@ -165,7 +165,7 @@ const String demoHtml = r'''
   <p>章节从 <code>h1~h6</code>（含 ARIA 标题）扫出来，地址是 DOM 路径，
      所以目录点击与 Markdown 走同一个位置类型。</p>
 
-  <h3>回执</h3>
+  <h3 id="receipts">回执</h3>
   <ol>
     <li><code>render</code>：这次提交的页面活着；</li>
     <li><code>position</code>：阅读位置 + 视口；</li>
@@ -180,6 +180,18 @@ const String demoHtml = r'''
     <tr><td><code>position</code></td><td>阅读位置 + 视口</td></tr>
     <tr><td><code>outline</code></td><td>章节清单</td></tr>
   </table>
+
+  <h2 id="links">Links</h2>
+  <p>Link handling is split: the package decides <em>what counts as a link</em> and
+     <em>what counts as leaving the document</em>, the host resolves the rest.</p>
+  <ul>
+    <li><a href="demo.html#receipts">demo.html#receipts</a> — same file, section
+        “回执”: the host turns the fragment into
+        <code>PreviewDomAddress('#receipts')</code> and lands there;</li>
+    <li><a href="https://pub.dev/packages/hyperlens">pub.dev</a> — external: handed out.</li>
+  </ul>
+  <p>链接的判定在包里，解析在宿主 —— 点 <a href="demo.html#receipts">demo.html#receipts</a>
+     会落回上面的「回执」；外链交给系统浏览器。</p>
 </body>
 </html>
 ''';
