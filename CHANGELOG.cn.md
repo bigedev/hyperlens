@@ -1,3 +1,18 @@
+## 0.2.1
+
+库本身没有改动 —— 这次让产物里的第三方许可声明与实际装进去的东西对上。
+
+- `assets/web/mermaid.min.js` 换成新产物。除了 mermaid 与 KaTeX，里面还有 53 个依赖
+  （d3 系 30 个、cytoscape 系、dagre-d3-es、dompurify、marked、lodash-es 等），分别按
+  MIT / ISC / BSD-3-Clause /（MPL-2.0 或 Apache-2.0）分发。完整清单、每个包的版权行、
+  四种许可的逐字全文都内联在产物末尾的注释里，副本走到哪，声明跟到哪。
+- 新增 `assets/licenses/mermaid-bundle.txt`：同一份清单的纯文本版，供宿主的许可页直接读。
+  原来的 `mermaid.txt` 只收两个主作品（mermaid、KaTeX）的 MIT 全文，看不出这个文件里
+  还装着另外 53 个包。
+- `THIRD_PARTY_NOTICES.md` / `.cn.md`：删掉「产物里没有第四方代码」的说法，把两份正文的
+  分工写清楚；另补一条指出产物里还带一份 dompurify（3.4.18，mermaid 自带），与独立分发的
+  `purify.min.js`（3.2.6）不是同一份代码，但同属 Apache-2.0，共用一份文本。
+
 ## 0.2.0
 
 链接点击收口成一套协议，由包持有：什么算要拦的链接、回执长什么样、哪些协议算「离开

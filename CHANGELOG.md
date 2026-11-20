@@ -1,3 +1,22 @@
+## 0.2.1
+
+No change to the library itself — this release makes the artifact's third-party notices match
+what is actually inside it.
+
+- `assets/web/mermaid.min.js` is rebuilt. Besides mermaid and KaTeX it carries 53 further
+  dependencies (the d3 family, the cytoscape family, dagre-d3-es, dompurify, marked,
+  lodash-es, …), distributed under MIT / ISC / BSD-3-Clause / (MPL-2.0 OR Apache-2.0). The
+  complete list — every package with its copyright line, plus the verbatim text of all four
+  licenses — is inlined as a comment at the end of the artifact, so the notices travel with
+  every copy of the file.
+- New `assets/licenses/mermaid-bundle.txt`: the same list as plain text, for a host's license
+  page to read directly. `mermaid.txt` only ever held the two MIT texts of the primary works
+  (mermaid, KaTeX) — it could not tell a reader that the file also contains 53 other packages.
+- `THIRD_PARTY_NOTICES.md` / `.cn.md`: the claim that there is no fourth-party code inside the
+  artifact is gone. The two texts are now explained as a pair, and one note flags the second
+  dompurify (3.4.18, brought along by mermaid) that rides inside the file alongside the
+  separately shipped `purify.min.js` (3.2.6) — same license, different code.
+
 ## 0.2.0
 
 Link clicks now have one protocol, owned by the package: the criteria for when a click
