@@ -95,4 +95,5 @@ android / ios / macos.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The third-party front-end resources bundled in
+`assets/web/` are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

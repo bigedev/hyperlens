@@ -88,4 +88,5 @@ await controller.runJavaScript(
 
 ## 许可证
 
-MIT —— 见 [LICENSE](LICENSE)。
+MIT —— 见 [LICENSE](LICENSE)。随包内置的前端资源见
+[THIRD_PARTY_NOTICES.cn.md](THIRD_PARTY_NOTICES.cn.md)。
