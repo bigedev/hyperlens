@@ -72,11 +72,10 @@ void main() {
       expect(event.href, 'chap2.html#sec2');
     });
 
-    test('space 名不认识：按旧式整段解（页面与 Dart 版本不同步时别炸）', () {
-      final PreviewEvent event = PreviewEvent.parse('link other a b');
-      event as PreviewLinkTapped;
-      expect(event.space, isNull);
-      expect(event.href, 'other a b');
+    test('space 名不认识：归到未知，不把整句当成链接（页面与 Dart 不同步也别炸）', () {
+      // 编码后的 href 不含空格 ⇒ 三段一定是「带地址空间的信封」。名字认不出时
+      // 退回「整段当 href」会把一句 `other a b` 交给调用方去打开文件。
+      expect(PreviewEvent.parse('link other a b'), isA<PreviewUnknownMessage>());
     });
 
     test('空 href 归到 PreviewUnknownMessage，别当成点了空链接', () {

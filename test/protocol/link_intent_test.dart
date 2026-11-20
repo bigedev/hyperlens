@@ -71,6 +71,21 @@ void main() {
       expect(parseLinkReceipt(''), isNull);
       expect(parseLinkReceipt('repo docs%2Fa.md '), isNull);
     });
+
+    test('段数不对或 space 认不出：null，不退回「整段当 href」', () {
+      // 编码后的 href 不含空格，所以 2 段 / 4 段都不是旧式回执
+      expect(parseLinkReceipt('repo a%2Fb.html'), isNull, reason: '缺 href 段');
+      expect(parseLinkReceipt('repo x a%2Fb.html extra'), isNull, reason: '多一段');
+      expect(parseLinkReceipt('repo2 docs%2Fa.md a%2Fb.html'), isNull,
+          reason: 'space 名字拼错：不能把整句当成链接交出去');
+    });
+
+    test('转义坏掉不抛：按原样留着，别让一条乱码回执打断通道', () {
+      // `%zz` / 结尾单个 `%` 抛 ArgumentError；`%FF` 抛 FormatException
+      expect(parseLinkReceipt('%zz')?.href, '%zz');
+      expect(parseLinkReceipt('repo docs%2Fa.md a%2Fb%'), isNotNull);
+      expect(parseLinkReceipt('repo docs%2Fa.md %FF')?.href, '%FF');
+    });
   });
 
   group('外链表', () {

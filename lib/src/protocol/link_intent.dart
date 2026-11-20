@@ -99,26 +99,33 @@ String linkReceipt({
 ///
 /// 两种形态都认：
 /// - `link repo my%2Fdoc.html a%2Fb.html%23sec2` → 带地址空间与上下文；
-/// - `link a%2Fb.html`（旧式 / 页面不知道自己属于谁）→ [space] 与 [context] 为 null。
+/// - `link a%2Fb.html`（旧式 / 页面不知道自己属于谁）→ `space` 与 `context` 为 null。
 ///
-/// 认不出（空 href、space 名不合法）返回 null —— 调用方归到
+/// 认不出（空 href、段数不对、space 名不合法）返回 null —— 调用方归到
 /// `PreviewUnknownMessage`，别把「认不出的消息」当成「点了空链接」。
 ({PreviewLinkSpace? space, String? context, String href})? parseLinkReceipt(
   String payload,
 ) {
   final List<String> parts = payload.split(' ');
-  if (parts.length == 3) {
-    final PreviewLinkSpace? space = PreviewLinkSpace.fromWire(parts[0]);
-    if (space != null) {
-      final String href = _decode(parts[2]);
-      if (href.isEmpty) {
-        return null;
-      }
-      return (space: space, context: _decode(parts[1]), href: href);
+  if (parts.length > 1) {
+    // 编码后的 href 里没有空格（`Uri.encodeComponent` 把空格写成 %20），所以拆出
+    // 两段以上就一定是带地址空间的信封：段数不对、或 space 认不出（页面与包不同步）
+    // 都返回 null。**不能退回「整段当 href」** —— 那会把一句 `repo2 x%20y` 当成
+    // 链接交出去，调用方拿着它去打开文件，报错离现场十万八千里。
+    if (parts.length != 3) {
+      return null;
     }
+    final PreviewLinkSpace? space = PreviewLinkSpace.fromWire(parts[0]);
+    if (space == null) {
+      return null;
+    }
+    final String href = _decode(parts[2]);
+    if (href.isEmpty) {
+      return null;
+    }
+    return (space: space, context: _decode(parts[1]), href: href);
   }
-  // 旧式：整段就是编码后的 href。href 编码后不含空格（空格会变成 %20），
-  // 所以走到这里说明页面的信封里只有一段。
+  // 旧式：整段就是编码后的 href（只有一段）。
   final String href = _decode(payload);
   if (href.isEmpty) {
     return null;
@@ -127,10 +134,16 @@ String linkReceipt({
 }
 
 /// 转义异常时按原样返回：一次非法转义不该让整次点击消失。
+///
+/// 两种异常都要接：`%zz` / 结尾单个 `%` 抛 [ArgumentError]，而 `%FF`（合法转义、
+/// 但解出来不是 UTF-8）抛 [FormatException]。漏掉后者会让**一条乱码回执直接抛到
+/// 调用方的通道回调里**，整页的后续回执跟着停摆。
 String _decode(String value) {
   try {
     return Uri.decodeComponent(value);
   } on ArgumentError {
+    return value;
+  } on FormatException {
     return value;
   }
 }
