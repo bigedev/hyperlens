@@ -1,3 +1,28 @@
+## 0.2.0
+
+链接点击收口成一套协议，由包持有：什么算要拦的链接、回执长什么样、哪些协议算「离开
+文档」。调用方只负责注入与接收，不再各抄一份。
+
+- 新增 `PreviewLinkSpace`（`repo` / `book`）与 `linkReceipt()` / `parseLinkReceipt()` /
+  `isExternalPreviewLink()` / `kPreviewExternalSchemes`（`lib/src/protocol/link_intent.dart`）。
+  `links.dart` 里那份私有的外链协议表已删除，两处读同一份。
+- 链接回执带上地址空间：`link <space> <context> <编码后的 href>`（例如
+  `link repo docs%2Fchap2.html chap2.html%23sec2`）。`context` 用来丢掉「刚从那一页
+  离开」的迟到回执 —— 旧信封只靠 `href` 判断，换页之后迟到的点击会算到新页头上。
+  旧式 `link <编码后的 href>` 仍然认，已有模板不用改。
+- `PreviewLinkTapped` 增加 `space` 与 `context`：宿主拿它跟自己配置的页面比，不一样
+  就忽略。
+- `HyperlensPage.fromText` / `htmlAnchorScript` 接受 `linkSpace` / `linkContext`：注入
+  的 HTML 脚本自己就发带地址空间的信封，页面不再需要第二段手写的点击脚本（两段脚本
+  会让一次点击发两条回执，第二条只靠下游的「同一处」判据兜住）。
+- 注入的 HTML 脚本在同一轮 JS 里**先报位置、再报链接**（捕获阶段的监听注册得比链接
+  监听早）：返回栈要的是「离开那一刻」的位置，不是上一次停稳的位置。
+- `OpenRepoFile` 保留跨文件链接的 `#片段`（`fragment`，已解码）：
+  `README.md#getting-started` 不再丢掉小节。同一篇文档里的纯 `#锚点` 仍交给页面自己滚。
+- 示例补上链接这条路的演法：HTML 文档挂了 `linkSpace` / `linkContext`，状态栏打出
+  回来的地址空间；`demo.html#receipts` 这条经 `PreviewDomAddress('#receipts')` 落位。
+  Markdown 文档仍旧发旧式信封 —— 两种都在屏上。
+
 ## 0.1.1
 
 库本身没有改动 —— 这次只整理随包发布的内容。
