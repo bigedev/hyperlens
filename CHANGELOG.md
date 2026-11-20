@@ -22,6 +22,9 @@ document". A caller injects and receives — it no longer copies either table.
 - The injected HTML script reports the reading position before the link, in the same JS
   turn (one capture-phase listener registered earlier than the link one), so a back
   stack gets the position the reader left from rather than the last settled one.
+- A receipt the package cannot make sense of — wrong segment count, unknown address
+  space, broken escaping — is reported as unknown instead of being handed to the caller
+  as a link (`%FF`-style escapes used to throw out of the parser).
 - `OpenRepoFile` keeps the `#fragment` of a cross-file link (`fragment`, decoded):
   `README.md#getting-started` no longer loses the section. A bare `#anchor` inside one
   document is still left to the page's own scrolling.
