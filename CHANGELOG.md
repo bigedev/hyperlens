@@ -1,3 +1,26 @@
+## 0.2.2
+
+Receipts now have a single entry point, so a host no longer decides whether a given receipt is
+worth moving off the main isolate — and HTML can re-send its syntax tree on demand.
+
+- New `PreviewReceiptDispatcher`: hand every channel message to `dispatch()` and the package
+  takes it from there. Small receipts are parsed inline, big ones (the syntax tree can reach
+  2MB) are decoded in a background isolate, and the threshold stays internal — callers no
+  longer carry a "how long counts as big" constant. The same document posts twice (the
+  skeleton at render time, the full tree when the syntax panel asks), so a late skeleton is
+  dropped as stale when another tree has already landed or a newer request returned first.
+  The panel never falls back from the full tree to the skeleton. Platforms without isolates
+  degrade to inline parsing.
+- The constructor takes an optional `onLog`: one line for the off-thread duration of a big
+  receipt, one for each dropped stale receipt. Silent by default.
+- The injected HTML script now exposes `window.hyperlensSyntaxAst()` (the same name Markdown
+  uses). HTML still sends its whole tree at once, but that first receipt can be lost (page
+  reload, blank-page retry) — a caller opening the syntax panel can ask with
+  `HyperlensCommands.requestSyntaxAst()` for another one.
+- The library docs, the example and both READMEs now use this entry point; the example's
+  syntax sheet shows Markdown (skeleton → full tree) and HTML (re-send) taking the same
+  command.
+
 ## 0.2.1
 
 No change to the library itself — this release makes the artifact's third-party notices match
