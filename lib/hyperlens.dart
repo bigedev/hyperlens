@@ -10,8 +10,12 @@
 ///   theme: theme,
 /// ).render(assets: const HyperlensRootBundleAssetLoader());
 ///
-/// final PreviewEvent event = PreviewEvent.parse(message);
+/// final dispatcher = PreviewReceiptDispatcher(apply: onEvent);
+/// void onMessage(String raw) => dispatcher.dispatch(raw);
 /// ```
+///
+/// 回执只有一个入口 [PreviewReceiptDispatcher]：宿主把通道消息整条交进来，
+/// 同步还是挪到后台、要不要丢掉过时的那份，都由这里判。
 ///
 /// 本包是**逻辑包**：渲染载荷怎么拼、回执怎么解、坐标怎么算、资产路径是什么。
 /// 它不带 widget、不碰 WebView，`lib/` 内不 import flutter —— pubspec 声明
@@ -44,5 +48,6 @@ export 'src/model/preview_syntax.dart';
 export 'src/model/preview_focus.dart';
 export 'src/protocol/commands.dart';
 export 'src/protocol/hyperlens_bridge.dart';
+export 'src/protocol/receipt_dispatcher.dart';
 // 链接回执上的地址空间 / 上下文是 [PreviewLinkTapped] 的字段，随主入口出去。
 export 'src/protocol/link_intent.dart';
