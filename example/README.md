@@ -35,11 +35,11 @@ The package itself has no platform code — what you see here is the *host* half
 | Step | Where |
 | --- | --- |
 | Render | `main.dart` → `_render()`: `HyperlensPage.fromText(...).render(assets: ...)` — Markdown needs assets, HTML does not |
-| Receipts | `main.dart` → `_onMessage()`: `HyperlensBridge.channelName` + `PreviewEvent.parse` (one parser for both document kinds) |
+| Receipts | `main.dart` → `_onMessage()`: `HyperlensBridge.channelName` → `PreviewReceiptDispatcher.dispatch` (one entry for both document kinds; small receipts inline, big ones off-thread, stale skeletons dropped) |
 | Outline | `src/outline_drawer.dart` for the list; a tap lands in `main.dart` → `_jumpTo()` and runs `HyperlensCommands.forPosition` |
 | Position | `main.dart`: two separate fields, *live* (`_live`, `PreviewPositionReported`, every scroll) and *last read* (`_bookmark`) — the latter is frozen only when the reader leaves (back to top / outline jump / switching document), and that frozen one is what goes back in as `restore:` |
 | Stale receipts | `main.dart` → `_fromLivePage()`: every commit gets a `token:`; receipts carrying another one are dropped, so a slow page cannot write into the next one |
-| Syntax tree | skeleton from `PreviewSyntaxReported` first; `main.dart` → `_showSyntax()` requests the full tree with `HyperlensCommands.requestSyntaxAst()`, `src/syntax_sheet.dart` renders it |
+| Syntax tree | skeleton from `PreviewSyntaxReported` first; `main.dart` → `_showSyntax()` requests the full tree with `HyperlensCommands.requestSyntaxAst()`, `src/syntax_sheet.dart` renders it. HTML takes the same command — it sends the whole tree at once, so there the command means *re-send* (the first one can be lost) |
 | Theme | `src/preview_toolbar.dart` → `demoThemes`: `HyperlensTheme.light / dark / ink`, colours and font size come from the caller |
 
 The bottom bar shows two lines — the latest receipt and the frozen *last position* — so every

@@ -55,20 +55,29 @@ final String html = await page.render(assets: const HyperlensRootBundleAssetLoad
 
 // ② 交给自己的 WebView。通道名两边必须一致，否则位置与目录静默不更新。
 await controller.loadHtmlString(html);
-controller.addJavaScriptChannel(
-  HyperlensBridge.channelName,
-  onMessageReceived: (message) {
-    switch (PreviewEvent.parse(message.message)) {
+
+// 回执只有一个入口：小回执同步解析；大回执（语法树能到 2MB）挪到后台 isolate；
+// 骨架晚到时不会把已经落地的完整树盖回去。
+final dispatcher = PreviewReceiptDispatcher(
+  apply: (PreviewEvent event) {
+    switch (event) {
       case PreviewRenderReady(:final result):
         onReady(result);          // ok（…）/ empty / 异常: …
       case PreviewPositionReported(:final position):
         remember(position);       // 下次打开送回这里
       case PreviewOutlineReported(:final outline):
         renderOutline(outline);   // 目录（Markdown / HTML 通用成员）
+      case PreviewSyntaxReported(:final tree):
+        cache(tree);              // 先骨架，要完整树时再拉
       default:
-        break;                    // 语法树、命中、链接按需处理
+        break;                    // 命中、链接按需处理
     }
   },
+  onLog: logReceipt,              // 可选：后台解析耗时、被丢掉的过时回执
+);
+controller.addJavaScriptChannel(
+  HyperlensBridge.channelName,
+  onMessageReceived: (message) => dispatcher.dispatch(message.message),
 );
 
 // ③ 目录点击：拿命令去跑（Markdown 带行号，HTML 带 DOM 路径）

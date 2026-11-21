@@ -43,8 +43,11 @@ class SyntaxSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'The first one is the skeleton; this is the full tree pulled by '
-                  'HyperlensCommands.requestSyntaxAst().',
+                  'Both kinds of tree come in through PreviewReceiptDispatcher (big '
+                  'receipts are decoded off-thread). Markdown sends a skeleton first and '
+                  'this sheet pulls the full tree with '
+                  'HyperlensCommands.requestSyntaxAst(); HTML sends the whole tree and '
+                  'the same command just asks for a re-send.',
                   style: theme.textTheme.bodySmall,
                 ),
                 const SizedBox(height: 8),

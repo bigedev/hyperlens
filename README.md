@@ -60,20 +60,30 @@ final String html = await page.render(assets: const HyperlensRootBundleAssetLoad
 // 2. Hand it to your own WebView. The channel name must match on both sides,
 //    otherwise positions and the outline stop updating without any error.
 await controller.loadHtmlString(html);
-controller.addJavaScriptChannel(
-  HyperlensBridge.channelName,
-  onMessageReceived: (message) {
-    switch (PreviewEvent.parse(message.message)) {
+
+// One entry for every receipt. Small ones are parsed inline; big ones (the
+// syntax tree can reach 2MB) are decoded off-thread; a skeleton arriving after
+// the full tree is dropped instead of overwriting it.
+final dispatcher = PreviewReceiptDispatcher(
+  apply: (PreviewEvent event) {
+    switch (event) {
       case PreviewRenderReady(:final result):
         onReady(result);          // ok（…）/ empty / exception: …
       case PreviewPositionReported(:final position):
         remember(position);       // restore it next time
       case PreviewOutlineReported(:final outline):
         renderOutline(outline);   // shared by Markdown and HTML
+      case PreviewSyntaxReported(:final tree):
+        cache(tree);              // skeleton first, full tree on request
       default:
-        break;                    // syntax tree, focus, links as needed
+        break;                    // focus, links as needed
     }
   },
+  onLog: logReceipt,              // optional: off-thread duration, dropped staleness
+);
+controller.addJavaScriptChannel(
+  HyperlensBridge.channelName,
+  onMessageReceived: (message) => dispatcher.dispatch(message.message),
 );
 
 // 3. Outline tap: run a command (line for Markdown, DOM path for HTML)

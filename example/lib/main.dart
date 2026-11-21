@@ -4,7 +4,10 @@
 ///
 /// 1. **渲染**：`HyperlensPage.fromText(...).render(...)` 得到一份可以直接交给
 ///    `loadHtmlString` 的整页 HTML —— Markdown 与 HTML 两条路同一个入口；
-/// 2. **回执**：注册 `HyperlensBridge.channelName`，用 `PreviewEvent.parse` 分发；
+/// 2. **回执**：注册 `HyperlensBridge.channelName`，把每条消息原样交给
+///    `PreviewReceiptDispatcher.dispatch` —— 小回执同步解析、大回执（语法树可以到
+///    2MB）由包挪到后台 isolate；同一份文档会连发两回（渲染时的骨架 + 源镜的完整
+///    树），晚到的那份由它判「已过时」丢掉，宿主不用自己管顺序；
 /// 3. **目录**：章节清单走同一条回执，点击只用一条命令
 ///    `HyperlensCommands.forPosition(entry.address)`（Markdown 是源码行，HTML 是 DOM 路径，
 ///    调用方不判断）；
@@ -12,7 +15,9 @@
 ///    每条回执走；「上次读到哪」只在**离开阅读处**（回顶部 / 换文档）那一刻定格，
 ///    重开时传回 `restore` 落回原处。两条判据混成一个，这个按钮就永远等于原地重开；
 /// 5. **语法树**：首屏来骨架（`ast` 回执），点「语法树」再用
-///    `HyperlensCommands.requestSyntaxAst()` 拉完整树。
+///    `HyperlensCommands.requestSyntaxAst()` 拉完整树 —— Markdown 与 HTML 走同一条
+///    命令（HTML 的注入脚本也挂了 `window.hyperlensSyntaxAst`）；两份树都从上面那条
+///    回执进 `_syntax`，大回执由 dispatcher 在后台解析。
 /// 6. **链接**：包判「什么算链接、什么算离开文档」（`isExternalPreviewLink`），
 ///    回执带地址空间（`space` / `context`，HTML 档由 `linkSpace:` / `linkContext:`
 ///    注入）；解析在宿主 —— 示例把「同文件 + `#片段`」落成
@@ -152,6 +157,20 @@ class _DemoPageState extends State<_DemoPage> {
   /// 用 [ValueNotifier] 而不是 setState：完整树可能在弹层已经打开之后才到。
   final ValueNotifier<PreviewSyntaxTree?> _syntax =
       ValueNotifier<PreviewSyntaxTree?>(null);
+
+  /// 回执入口：宿主只把通道消息交进来，剩下的都在包里。
+  ///
+  /// 语法树能到 2MB，解码一次几百毫秒 —— 那一下压在主 isolate 上就是「点开源镜，
+  /// 界面停一拍」。`dispatch` 按长度自己分流：小回执同步（更快、不打乱顺序），大回执
+  /// 挪到后台 isolate；并且**先后不说谎** —— 骨架晚到不会把已经落地的完整树盖回去。
+  ///
+  /// `onLog` 只接演示用的诊断：真机上能看到「大回执 xxxB 后台解析 xms」与
+  /// 「已过时，丢弃」。宿主不必自己判「要不要挪后台」，也不要直接 `PreviewEvent.parse`
+  /// —— 那样大回执会回到主 isolate，两回的先后也没人管。
+  late final PreviewReceiptDispatcher _dispatcher = PreviewReceiptDispatcher(
+    apply: _applyReceipt,
+    onLog: (String message) => debugPrint('Receipt: $message'),
+  );
 
   @override
   void dispose() {
@@ -377,8 +396,17 @@ class _DemoPageState extends State<_DemoPage> {
     if (!mounted) {
       return;
     }
+    // 一条回执只有这一个入口：同步还是挪后台、要不要丢掉过时的那份，都在包里判。
+    // 事件从 [_applyReceipt] 回来（大回执那份来自后台 isolate，会晚一点）。
+    _dispatcher.dispatch(message.message);
+  }
+
+  /// 落地一条回执。大回执从后台 isolate 回来时，这一页可能已经没了。
+  void _applyReceipt(PreviewEvent event) {
+    if (!mounted) {
+      return;
+    }
     // 认不出来的一律归到 PreviewUnknownMessage：页面与 Dart 版本不同步时别炸。
-    final PreviewEvent event = PreviewEvent.parse(message.message);
     switch (event) {
       case PreviewRenderReady(:final String? token, :final String result):
         if (!_fromLivePage(token)) {
@@ -471,7 +499,13 @@ class _DemoPageState extends State<_DemoPage> {
 
   /// 语法树：首屏只有骨架，这里再要一份**完整**树（含子块与 inline token）。
   ///
-  /// 完整树重得多，所以它不在渲染路径上 —— 只有读者真要看结构时才拉。
+  /// 完整树重得多，所以它不在渲染路径上 —— 只有读者真要看结构时才拉。两种文档同一
+  /// 条命令：Markdown 用它把骨架升级成完整树，HTML 用它**重发**整棵树（HTML 本来
+  /// 一次带全，但首屏那条可能丢 —— 页面重载、白屏重试都会，丢了面板就一直是空的）。
+  ///
+  /// 拿到的那份照旧从 `_onMessage` 进 `_syntax`；大回执在后台解析，弹层开着也能
+  /// 就地刷新（[ValueNotifier]）。宿主实现里更抠一点：HTML 只在还没有非空树时补拉，
+  /// 这里每次都要一份，演示「按需才拉」这条边界。
   Future<void> _showSyntax() async {
     final WebViewController? controller = _controller;
     if (controller != null) {

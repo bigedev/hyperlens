@@ -34,11 +34,11 @@ JavaScript 通道，加几个按钮。
 | 步骤 | 在哪 |
 | --- | --- |
 | 渲染 | `main.dart` → `_render()`：`HyperlensPage.fromText(...).render(assets: ...)` —— Markdown 要资产，HTML 不要 |
-| 回执 | `main.dart` → `_onMessage()`：`HyperlensBridge.channelName` + `PreviewEvent.parse`（两种文档同一个解析器） |
+| 回执 | `main.dart` → `_onMessage()`：`HyperlensBridge.channelName` → `PreviewReceiptDispatcher.dispatch`（两种文档同一个入口；小回执同步、大回执后台解析、过时的骨架会被丢掉） |
 | 目录 | 清单在 `src/outline_drawer.dart`；点击回到 `main.dart` → `_jumpTo()`，执行 `HyperlensCommands.forPosition` |
 | 位置 | `main.dart` 里两个字段：「此刻在哪」`_live`（`PreviewPositionReported`，每滚一次就更新）与「上次读到哪」`_bookmark` —— 后者只在读者**离开**时定格（回顶部 / 目录跳转 / 切文档），定格的那个才作为 `restore:` 传回去 |
 | 陈旧回执 | `main.dart` → `_fromLivePage()`：每次提交带一个新 `token:`，对不上的回执丢掉：慢一拍的页面写不进下一份的账 |
-| 语法树 | 先收 `PreviewSyntaxReported` 的骨架；`main.dart` → `_showSyntax()` 用 `HyperlensCommands.requestSyntaxAst()` 拉完整树，弹层在 `src/syntax_sheet.dart` |
+| 语法树 | 先收 `PreviewSyntaxReported` 的骨架；`main.dart` → `_showSyntax()` 用 `HyperlensCommands.requestSyntaxAst()` 拉完整树，弹层在 `src/syntax_sheet.dart`。HTML 走同一条命令 —— 它一次带全，这条命令是**重发**（首屏那条可能丢） |
 | 主题 | `src/preview_toolbar.dart` → `demoThemes`：`HyperlensTheme.light / dark / ink` —— 配色与字号都由调用方给 |
 
 底部两行，一行是最新回执、一行是定格下来的「上次位置」，不必开调试器就能看到每一步。

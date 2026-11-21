@@ -44,7 +44,7 @@ flowchart LR
 | `render` | the submitted page is alive |
 | `position` | reading position + viewport |
 | `outline` | section list |
-| `ast` | syntax tree (skeleton first) |
+| `ast` | syntax tree — Markdown sends a skeleton first, HTML sends all of it |
 
 ```dart
 final html = await HyperlensPage.fromText(
