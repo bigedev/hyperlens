@@ -145,6 +145,7 @@ void main() {
         js,
         contains('hyperLensSectionsPost();\n'
             'hyperLensSyntaxPost();\n'
+            'window.hyperlensSyntaxAst = function () { hyperLensSyntaxPost(); };\n'
             'hyperLensWatchResize();'),
       );
       // 回调里要先失效缓存，否则 hyperLensSections() 会把旧清单原样返回
@@ -152,6 +153,17 @@ void main() {
       final String body = js.substring(at, at + 900);
       expect(body, contains('hyperLensInvalidateSections();'));
       expect(body, contains('hyperLensSectionsPost();'));
+    });
+
+    test('语法树可以按需重发：入口名与 Markdown 一致（`hyperlensSyntaxAst`）', () {
+      // 首屏那条 `ast` 会丢（页面重载、白屏重试、站点在只读/运行之间来回切），
+      // 丢了之后宿主的「源镜」页就永远空着 —— 必须能再要一份。
+      final String js = htmlAnchorScript(null);
+      expect(js, contains('hyperLensSyntaxPost();'), reason: '首屏仍是一次带全');
+      expect(
+        js,
+        contains('window.hyperlensSyntaxAst = function () { hyperLensSyntaxPost(); };'),
+      );
     });
   });
 }

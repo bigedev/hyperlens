@@ -581,8 +581,12 @@ String htmlAnchorScript(
       // 再在 load / resize 后各补一次：图片撑开布局、旋转屏幕都会改可见性。
       // 这两处同时作废章节缓存 —— 缓存按文档高度判活，重排后必须重扫。
       'hyperLensSectionsPost();\n'
-      // 语法树骨架：一篇一次（结构由 DOM 决定，折叠不改结构，所以不跟高度重发）
+      // 语法树：一次带全（结构由 DOM 决定，折叠不改结构，所以不跟高度重发）
       'hyperLensSyntaxPost();\n'
+      // 同一个入口名字与 Markdown 一致（`HyperlensCommands.requestSyntaxAst`）：
+      // 首屏那一条可能丢（页面重载、白屏重试、站点停止/运行来回切），宿主切到
+      // 「源镜」页时会调它补一份 —— 没这个，面板就永远停在「还没有解析结果」。
+      'window.hyperlensSyntaxAst = function () { hyperLensSyntaxPost(); };\n'
       // 之后的高度变化（折叠展开、图片撑开）也要重扫，见 hyperLensWatchResize
       'hyperLensWatchResize();\n'
       // 链接点击回一条 link；页面活了回一条 render（两种文档同一条回执）
