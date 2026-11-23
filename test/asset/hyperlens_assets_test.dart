@@ -69,4 +69,29 @@ void main() {
 
     expect(hits, isEmpty, reason: '改用 HyperlensAssets.*：\n${hits.join('\n')}');
   });
+
+  test('额外语言都在包里，且真能注册', () {
+    // 41 份是官方 highlight.js 11.9.0 的 per-language 产物，一个都不能是
+    // 404 的 HTML、也不能是别人家的 bundle —— 两种错都只在真机上表现为「没色」
+    expect(
+      HyperlensAssets.hljsExtraLanguages.length,
+      41,
+      reason: '增减语言要同步 pubspec 的 assets/web/hljs/ 与调用方注释',
+    );
+
+    final List<String> missing = <String>[];
+    final List<String> notGrammar = <String>[];
+    for (final String key in HyperlensAssets.hljsExtraLanguages) {
+      final File file = File(key.replaceFirst('packages/hyperlens/', ''));
+      if (!file.existsSync()) {
+        missing.add(key);
+        continue;
+      }
+      if (!file.readAsStringSync().contains('hljs.registerLanguage')) {
+        notGrammar.add(key);
+      }
+    }
+    expect(missing, isEmpty, reason: '缺文件：\n${missing.join('\n')}');
+    expect(notGrammar, isEmpty, reason: '不是 highlight.js 语法定义：\n${notGrammar.join('\n')}');
+  });
 }

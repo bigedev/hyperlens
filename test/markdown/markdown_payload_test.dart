@@ -59,6 +59,7 @@ void main() {
         '<script>/*__MARKED_JS__*/</script>'
         '<script>/*__HLJS_JS__*/</script>'
         '<script>/*__HLJS_DART_JS__*/</script>'
+        '<script>/*__HLJS_EXTRA_JS__*/</script>'
         '<script>/*__KATEX_JS__*/</script>'
         '<script>/*__MHCHEM_JS__*/</script>'
         '<script>/*__MERMAID_JS__*/</script>'
@@ -77,6 +78,9 @@ void main() {
           HyperlensAssets.purifyJs => 'PURIFY',
           HyperlensAssets.highlightJs => 'HLJS',
           HyperlensAssets.highlightDartJs => 'HLJS-DART',
+          // 额外语言有 41 份，按目录判而不是逐个列
+          _ when HyperlensAssets.hljsExtraLanguages.contains(path) =>
+            'HLJS-EXTRA',
           HyperlensAssets.katexCss => 'KATEX-CSS',
           HyperlensAssets.katexJs => 'KATEX-JS',
           HyperlensAssets.mhchemJs => 'MHCHEM-JS',

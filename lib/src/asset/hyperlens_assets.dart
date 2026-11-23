@@ -63,6 +63,65 @@ class HyperlensAssets {
   /// dart 不在 highlight.js 的「常用语言」包里，单独带一份语言定义。
   static const String highlightDartJs = '$prefix/highlight-dart.min.js';
 
+  /// highlight.js 额外语言所在目录（官方 11.9.0 的 per-language 产物）。
+  static const String hljsLanguagesDir = '$prefix/hljs';
+
+  /// 「常用语言」包之外、随包带的语法定义。
+  ///
+  /// `highlight.min.js` 是官方 **common** 构建，只有 36 种；编辑器侧（re_highlight）
+  /// 认的 `powershell` / `cmake` / `protobuf` / `vbscript` / `dos` 等一个都不在里面，
+  /// 于是同一份代码「源码视图有色、预览里没色」。这里补齐上游写到的那些。
+  ///
+  /// 三条约定：
+  /// - **必须与 [highlightJs] 同版本**（11.9.0）。跨版本混用不报错，只表现为个别
+  ///   token 颜色错位，很难归因；
+  /// - 文件名就是语言 id（`hljs.registerLanguage(...)` 自己注册），别再映射；
+  /// - 用不上就别全带：41 份合计约 110 KB，压缩后约 50 KB。要瘦身就在这里删条目，
+  ///   同时删 `assets/web/hljs/` 下对应的文件。
+  static const List<String> hljsExtraLanguages = <String>[
+    '$hljsLanguagesDir/asciidoc.min.js',
+    '$hljsLanguagesDir/awk.min.js',
+    '$hljsLanguagesDir/clojure.min.js',
+    '$hljsLanguagesDir/cmake.min.js',
+    '$hljsLanguagesDir/dos.min.js',
+    '$hljsLanguagesDir/elixir.min.js',
+    '$hljsLanguagesDir/erb.min.js',
+    '$hljsLanguagesDir/erlang.min.js',
+    '$hljsLanguagesDir/fsharp.min.js',
+    '$hljsLanguagesDir/gherkin.min.js',
+    '$hljsLanguagesDir/glsl.min.js',
+    '$hljsLanguagesDir/gradle.min.js',
+    '$hljsLanguagesDir/groovy.min.js',
+    '$hljsLanguagesDir/haml.min.js',
+    '$hljsLanguagesDir/handlebars.min.js',
+    '$hljsLanguagesDir/haskell.min.js',
+    '$hljsLanguagesDir/haxe.min.js',
+    '$hljsLanguagesDir/http.min.js',
+    '$hljsLanguagesDir/julia.min.js',
+    '$hljsLanguagesDir/latex.min.js',
+    '$hljsLanguagesDir/llvm.min.js',
+    '$hljsLanguagesDir/nginx.min.js',
+    '$hljsLanguagesDir/nix.min.js',
+    '$hljsLanguagesDir/nsis.min.js',
+    '$hljsLanguagesDir/ocaml.min.js',
+    '$hljsLanguagesDir/pgsql.min.js',
+    '$hljsLanguagesDir/powershell.min.js',
+    '$hljsLanguagesDir/properties.min.js',
+    '$hljsLanguagesDir/protobuf.min.js',
+    '$hljsLanguagesDir/qml.min.js',
+    '$hljsLanguagesDir/scala.min.js',
+    '$hljsLanguagesDir/smali.min.js',
+    '$hljsLanguagesDir/stylus.min.js',
+    '$hljsLanguagesDir/tcl.min.js',
+    '$hljsLanguagesDir/thrift.min.js',
+    '$hljsLanguagesDir/twig.min.js',
+    '$hljsLanguagesDir/vala.min.js',
+    '$hljsLanguagesDir/vbscript.min.js',
+    '$hljsLanguagesDir/verilog.min.js',
+    '$hljsLanguagesDir/vhdl.min.js',
+    '$hljsLanguagesDir/xquery.min.js',
+  ];
+
   /// KaTeX：数学公式渲染。清洗完成之后才调用 `katex.render`（DOM API，不经过
   /// `innerHTML`），所以**不需要给 DOMPurify 白名单开 `math` / `svg`**。
   static const String katexJs = '$prefix/katex.min.js';
@@ -86,11 +145,11 @@ class HyperlensAssets {
   /// 没有增量能力。
   static const String mermaidJs = '$prefix/mermaid.min.js';
 
-  /// 全部随包资产（17 项）。
+  /// 全部随包资产（17 项 + [hljsExtraLanguages]）。
   ///
   /// 给使用方校验打包是否完整用：数量对不上说明 pubspec 的 `flutter: assets:`
   /// 或发布产物漏了文件 —— 那条错误在运行期只表现为白屏，不会编译失败。
-  static const List<String> all = <String>[
+  static final List<String> all = <String>[
     markdownViewHtml,
     mdLightCss,
     mdDarkCss,
@@ -108,5 +167,6 @@ class HyperlensAssets {
     mhchemJs,
     katexCss,
     mermaidJs,
+    ...hljsExtraLanguages,
   ];
 }

@@ -654,6 +654,14 @@
     /*__HLJS_DART_JS__*/
   </script>
   <!--
+    highlight.js 的额外语言（官方 per-language 产物，41 份）。
+    每份都是 `hljs.registerLanguage(...)` 的 IIFE，靠全局 `hljs` 注册，
+    所以**必须排在 HLJS_JS 之后**；顺序彼此无关。
+  -->
+  <script>
+    /*__HLJS_EXTRA_JS__*/
+  </script>
+  <!--
     KaTeX 与它的 mhchem 扩展（化学式 \ce{} / \pu{}）。
     **顺序不能反**：mhchem 是 UMD，运行时读全局 `katex`；两个文件的版本必须同号。
     文档里没有公式时 Dart 侧把这两段换成空串（门控见 markdown_extras.dart），
@@ -1198,12 +1206,17 @@
         }
 
         // 代码块高亮：marked 不再内置高亮，这里对每个 <pre><code> 调 hljs
+        // 围栏写 `vue` 时没有对应规则（highlight.js 从来没支持 Vue SFC），退到
+        // `xml`：它的规则把 script 与 style 标签的正文交给子语言，模板、脚本、
+        // 样式三段都有色，只是 TS 的 script 会按 JavaScript 解析。
+        const FENCE_LANG_ALIAS = { vue: 'xml' };
         let highlighted = 0;
         if (window.hljs) {
           host.querySelectorAll('pre code').forEach(function (block) {
             const cls = block.className || '';
             const m = cls.match(/language-([\w+#-]+)/);
-            const lang = m && m[1] && window.hljs.getLanguage(m[1]) ? m[1] : null;
+            const wanted = m && m[1] ? (FENCE_LANG_ALIAS[m[1]] || m[1]) : '';
+            const lang = wanted && window.hljs.getLanguage(wanted) ? wanted : null;
             if (lang) {
               block.innerHTML = window.hljs.highlight(block.textContent, {
                 language: lang,

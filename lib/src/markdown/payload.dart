@@ -160,6 +160,16 @@ Future<String> buildMarkdownHtml({
         '/*__HLJS_DART_JS__*/',
         await load(HyperlensAssets.highlightDartJs),
       )
+      // 「常用语言」包之外的那 41 种：每份自带 `hljs.registerLanguage`，
+      // 拼成一串即可（见 [HyperlensAssets.hljsExtraLanguages]）。
+      // 资产读取走 CachingAssetBundle，重复构建预览不会重复读盘。
+      .replaceFirst(
+        '/*__HLJS_EXTRA_JS__*/',
+        (await Future.wait(
+          HyperlensAssets.hljsExtraLanguages.map(load),
+        ))
+            .join('\n'),
+      )
       .replaceFirst('/*__KATEX_JS__*/', katexJs)
       .replaceFirst('/*__MHCHEM_JS__*/', mhchemJs)
       .replaceFirst('/*__MERMAID_JS__*/', mermaidJs)
