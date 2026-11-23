@@ -7,7 +7,7 @@ DOM 路径 —— 编辑器因此能在正文与预览之间来回移动时不�
 
 [English](README.md) | 简体中文
 
-> **状态：0.1.0 开发中，尚未发布。**
+> **状态：0.2.3，已发布到 [pub.dev](https://pub.dev/packages/hyperlens)。**
 
 ## 它做什么
 
@@ -17,6 +17,13 @@ DOM 路径 —— 编辑器因此能在正文与预览之间来回移动时不�
   预览送回原处。
 - **大纲与语法树**：与预览同一次解析得出，任何目录视图都与正文一致。
 - **命中定位**：搜索结果滚进视野并保持高亮，回执会说明锚点有没有找到。
+- **代码块高亮**：随包 highlight.js，共 78 种语言 —— 官方常用语言之外的 41 种
+  （PowerShell、CMake、Protocol Buffers、Groovy、LaTeX、Scala、Elixir、Clojure、
+  GLSL、Verilog、Nginx、PostgreSQL…）单独带语法定义。Vue 没有专用规则，围栏写
+  `vue` 时退到 `xml`：模板、脚本、样式三段都有色，只有 `<script lang="ts">`
+  会按 JavaScript 解析。
+- **公式与图表**：KaTeX（含 mhchem 化学式）与 Mermaid 按源码内容自动启用，
+  文档里没写就不背那 4 MB 资产。
 
 ## 它不做什么
 
@@ -28,7 +35,7 @@ DOM 路径 —— 编辑器因此能在正文与预览之间来回移动时不�
 
 ```yaml
 dependencies:
-  hyperlens: ^0.1.0
+  hyperlens: ^0.2.3
 ```
 
 调用方的 WebView 需要能通过 `packages/hyperlens/...` 加载包内资产；路径以常量形式

@@ -8,7 +8,7 @@ source and preview without guessing.
 
 English | [简体中文](README.cn.md)
 
-> **Status: 0.1.0 in progress.** Nothing has been published yet.
+> **Status: 0.2.3, published on [pub.dev](https://pub.dev/packages/hyperlens).**
 
 ## What it does
 
@@ -20,6 +20,14 @@ English | [简体中文](README.cn.md)
   agrees with the preview.
 - **Search hits** scroll into view and stay highlighted; the receipt says whether
   the anchor was found.
+- **Syntax highlighting** for code blocks: highlight.js ships with 78 languages —
+  the 41 beyond the official "common" set (PowerShell, CMake, Protocol Buffers,
+  Groovy, LaTeX, Scala, Elixir, Clojure, GLSL, Verilog, Nginx, PostgreSQL, …) come
+  as their own grammar files. Vue has no dedicated grammar: a `vue` fence falls back
+  to `xml`, which colors template, script and style; only `<script lang="ts">` is
+  parsed as JavaScript.
+- **Math and diagrams**: KaTeX (with mhchem formulas) and Mermaid switch on from the
+  document's own source; a document that uses neither does not pay their 4 MB.
 
 ## What it does not do
 
@@ -31,7 +39,7 @@ English | [简体中文](README.cn.md)
 
 ```yaml
 dependencies:
-  hyperlens: ^0.1.0
+  hyperlens: ^0.2.3
 ```
 
 The caller's WebView must be able to load package assets through
