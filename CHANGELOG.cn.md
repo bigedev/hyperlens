@@ -1,3 +1,17 @@
+## 0.2.3
+
+两处预览的代码块不再只认 highlight.js 的「常用语言」包，常用的那些真的能着色了。
+
+- 随包多带 41 份语法定义（`assets/web/hljs/`，官方 11.9.0 的 per-language 产物，约
+  110 KB、压缩后约 50 KB）：PowerShell、CMake、Protocol Buffers、Groovy、Gradle、
+  LaTeX、Haskell、Scala、Elixir、Erlang、Clojure、OCaml、GLSL、Verilog、VHDL、Nginx、
+  Handlebars、Twig、ERB、批处理、VBScript、PostgreSQL 等。`highlight.min.js` 是官方
+  **common** 构建，这些一个都不在里面 —— 于是同一份代码在编辑器里有色、预览里没色。
+- 清单在 `HyperlensAssets.hljsExtraLanguages`，`all` 也一并包含；要瘦身就从那份清单里删。
+- Vue 没有 highlight.js 规则（从来没有）。围栏写 `vue` 时退到 `xml`：它的规则把
+  `<script>` / `<style>` 交给 JavaScript 与 CSS 语法，所以模板、脚本、样式三段都有色，
+  只有 `<script lang="ts">` 按 JavaScript 解析。
+
 ## 0.2.2
 
 回执有了唯一入口，宿主不必自己判「这条要不要挪到后台」；HTML 的语法树也能按需重发。

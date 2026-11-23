@@ -1,3 +1,21 @@
+## 0.2.3
+
+Code blocks in both previews now cover the languages people actually write in, not just
+highlight.js's "common" build.
+
+- 41 more grammars ship with the package (`assets/web/hljs/`, the official 11.9.0
+  per-language files, ~110 KB raw / ~50 KB deflated): PowerShell, CMake, Protocol Buffers,
+  Groovy, Gradle, LaTeX, Haskell, Scala, Elixir, Erlang, Clojure, OCaml, GLSL, Verilog,
+  VHDL, Nginx, Handlebars, Twig, ERB, batch files, VBScript, PostgreSQL and more.
+  `highlight.min.js` is the official *common* build and carries none of them, so the same
+  code was colored in an editor and plain in the preview.
+- `HyperlensAssets.hljsExtraLanguages` lists them and `all` now includes them; drop entries
+  from that list to slim the bundle.
+- Vue has no highlight.js grammar (it never had one). A fence written as `vue` falls back to
+  `xml`, whose rules hand `<script>` / `<style>` to the JavaScript and CSS grammars — so
+  template, script and style all get color; only `<script lang="ts">` is parsed as
+  JavaScript.
+
 ## 0.2.2
 
 Receipts now have a single entry point, so a host no longer decides whether a given receipt is

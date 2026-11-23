@@ -1,6 +1,6 @@
 name: hyperlens
 description: "Source-linked preview for Markdown and HTML: rendering, outline and reading position share one address (source line or DOM path), so editors can jump either way."
-version: 0.2.2
+version: 0.2.3
 repository: https://github.com/bigedev/hyperlens          # 必须是境外可达地址（pana 从境外抓，且只认 GitHub / GitLab / Bitbucket）
 issue_tracker: https://github.com/bigedev/hyperlens/issues
 # 不写 homepage：它也会被 pana 抓，指向 atomgit 等于再报一条 unreachable
@@ -33,3 +33,5 @@ dev_dependencies:
 flutter:
   assets:
     - assets/web/
+    # highlight.js 的额外语言（官方 per-language 产物），见 HyperlensAssets.hljsExtraLanguages
+    - assets/web/hljs/
