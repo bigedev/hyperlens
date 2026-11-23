@@ -1,3 +1,15 @@
+## 0.2.4
+
+Documentation only — no code changed in this release.
+
+- The README still said "0.1.0 in progress, nothing has been published yet" and told
+  callers to depend on `^0.1.0`. Both had been stale for five releases: the status
+  line now tracks the current version, and the install snippet points at the 0.2 line.
+  Copying the old snippet resolved an old package.
+- The capability list was missing two things the package has had for a while:
+  code-block syntax highlighting (78 languages, including the 41 extra grammars from
+  0.2.3) and KaTeX / Mermaid, which switch on from the document's own source.
+
 ## 0.2.3
 
 Code blocks in both previews now cover the languages people actually write in, not just
